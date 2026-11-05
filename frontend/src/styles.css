@@ -1,0 +1,83 @@
+:root {
+  --pl-gap: 1rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Armenian',
+    sans-serif;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--p-surface-50);
+  color: var(--p-text-color);
+}
+
+.pl-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--pl-gap) 1.5rem 3rem;
+}
+
+.pl-page h1 {
+  font-size: 1.4rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.pl-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: var(--pl-gap);
+}
+
+.pl-muted {
+  color: var(--p-text-muted-color);
+}
+
+.pl-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Captions and comments can be Farsi (RTL) or Armenian/English (LTR): elements use dir="auto". */
+.pl-text {
+  unicode-bidi: plaintext;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pl-card {
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+
+.pl-grid {
+  display: grid;
+  gap: var(--pl-gap);
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.pl-stat .label {
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
+}
+
+.pl-stat .value {
+  font-size: 1.35rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pl-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--p-surface-200);
+}

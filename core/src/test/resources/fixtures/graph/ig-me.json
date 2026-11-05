@@ -1,0 +1,11 @@
+{
+  "user_id": "17841400000000001",
+  "id": "26000000000000001",
+  "username": "pagelens.test",
+  "name": "PageLens Test",
+  "account_type": "BUSINESS",
+  "profile_picture_url": "https://example.invalid/pic.jpg",
+  "followers_count": 1250,
+  "follows_count": 180,
+  "media_count": 3
+}

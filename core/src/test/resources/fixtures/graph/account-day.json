@@ -1,0 +1,15 @@
+{
+  "data": [
+    { "name": "reach", "period": "day", "title": "Accounts reached", "total_value": { "value": 2240 }, "id": "x" },
+    { "name": "views", "period": "day", "total_value": { "value": 5100 }, "id": "x" },
+    { "name": "accounts_engaged", "period": "day", "total_value": { "value": 310 }, "id": "x" },
+    { "name": "total_interactions", "period": "day", "total_value": { "value": 455 }, "id": "x" },
+    { "name": "likes", "period": "day", "total_value": { "value": 380 }, "id": "x" },
+    { "name": "comments", "period": "day", "total_value": { "value": 21 }, "id": "x" },
+    { "name": "shares", "period": "day", "total_value": { "value": 19 }, "id": "x" },
+    { "name": "saves", "period": "day", "total_value": { "value": 35 }, "id": "x" },
+    { "name": "replies", "period": "day", "total_value": { "value": 4 }, "id": "x" },
+    { "name": "profile_links_taps", "period": "day", "total_value": { "value": 7 }, "id": "x" }
+  ],
+  "paging": { "previous": "x", "next": "y" }
+}

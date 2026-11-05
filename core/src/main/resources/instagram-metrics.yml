@@ -1,0 +1,21 @@
+# The ONE place Instagram metric names live (plan section 12: metric churn).
+# Verified against Meta's v27.0 reference on 2026-11-05; see docs/API_NOTES.md before changing.
+# Metrics PageLens doesn't map to a column are kept in the snapshot's extra_metrics JSON.
+# A metric the API rejects is logged as unsupported and skipped. It is never stored as 0.
+
+pagelens:
+  instagram:
+    media-metrics:
+      FEED: [reach, views, likes, comments, shares, saved, total_interactions, follows, profile_visits]
+      REELS: [reach, views, likes, comments, shares, saved, total_interactions, ig_reels_avg_watch_time, ig_reels_video_view_total_time]
+      STORY: [reach, views, shares, total_interactions, follows, profile_visits, replies]
+    # Only valid for accounts connected with Facebook Login (they include promoted surfaces).
+    facebook-login-media-metrics:
+      FEED: [total_likes, total_comments, total_views]
+      REELS: [total_likes, total_comments, total_views]
+      STORY: [total_views]
+    account-daily-metrics: [reach, views, accounts_engaged, total_interactions, likes, comments, shares, saves, replies, profile_links_taps]
+    demographics:
+      metric: follower_demographics
+      timeframe: this_month
+      breakdowns: [age, city, country, gender]

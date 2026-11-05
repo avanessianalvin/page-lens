@@ -1,0 +1,14 @@
+{
+  "data": [
+    {
+      "id": "18000000000000001",
+      "caption": "Old photo",
+      "media_type": "IMAGE",
+      "permalink": "https://www.instagram.com/p/AAA1/",
+      "timestamp": "2025-01-15T09:30:00+0000",
+      "comments_count": 1,
+      "shortcode": "AAA1"
+    }
+  ],
+  "paging": { "cursors": { "before": "b2", "after": "a2" } }
+}

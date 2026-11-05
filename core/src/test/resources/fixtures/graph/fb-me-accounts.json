@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "id": "100000000000001", "name": "My Page", "instagram_business_account": { "id": "17841400000000099", "username": "page.linked" } },
+    { "id": "100000000000002", "name": "Page Without IG" }
+  ],
+  "paging": { "cursors": { "before": "x", "after": "y" } }
+}

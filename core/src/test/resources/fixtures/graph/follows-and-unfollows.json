@@ -1,0 +1,8 @@
+{
+  "data": [
+    { "name": "follows_and_unfollows", "period": "day",
+      "total_value": { "value": 15, "breakdowns": [ { "dimension_keys": ["follow_type"], "results": [
+        { "dimension_values": ["FOLLOWER"], "value": 12 },
+        { "dimension_values": ["NON_FOLLOWER"], "value": 3 } ] } ] }, "id": "x" }
+  ]
+}

@@ -12,18 +12,38 @@ First-time install: [SETUP.md](SETUP.md). All commands run from the repo root wi
 ./mvnw -pl app-web -am test -Dtest=PageLensWebApplicationTest -Dsurefire.failIfNoSpecifiedTests=false  # app test, rebuilding core first
 ```
 
-Integration tests start a throwaway `postgres:17-alpine` container. When Docker isn't running they are **skipped** (reported as "Skipped" in the summary), so check the skip count before trusting a green build.
+Integration tests start a throwaway `postgres:17-alpine` container and a fake Graph API (`FakeGraphApi`, JSON fixtures in `core/src/test/resources/fixtures/graph`). When Docker isn't running they are **skipped** (reported as "Skipped" in the summary), so check the skip count before trusting a green build.
+
+## Frontend
+
+```
+cd frontend
+npm run dev        # http://localhost:5173 with hot reload; proxies /api, /auth, /actuator to :8080
+npm run build      # type-check + build into app-web/src/main/resources/static (git-ignored)
+npm run gen:api    # regenerate src/api/schema.d.ts from app-web/target/openapi.json
+```
+
+`app-web/target/openapi.json` is written by `PageLensWebApplicationTest#exportsOpenApiSpec`, so after changing a controller or DTO run `./mvnw -pl app-web -am test` and then `npm run gen:api`. The type-check step catches any frontend code that no longer matches. In dev mode the Spring app must be running too. Log in via the Vite URL: the session cookie is proxied.
 
 ## Start and stop
 
 | What | Start | Stop |
 |---|---|---|
-| Dashboard / REST API | `java -jar app-web/target/pagelens-web.jar` or `./mvnw -pl app-web -am spring-boot:run` | Ctrl+C |
-| MCP server | Launched by Claude (config arrives in Phase 2). Phase 0: `java -jar app-mcp/target/pagelens-mcp.jar` boots, checks the DB and exits. | n/a |
+| Dashboard / REST API / scheduler | `java -jar app-web/target/pagelens-web.jar` (rebuild the frontend first if it changed) | Ctrl+C |
+| MCP server | Launched by Claude (config arrives in Phase 2). For now `java -jar app-mcp/target/pagelens-mcp.jar` boots, checks the DB and exits. | n/a |
 
-The dashboard listens on `http://127.0.0.1:8080` only.
+The dashboard listens on `http://127.0.0.1:8080` only. Only app-web runs scheduled syncs. A sync left `RUNNING` by a crashed process is marked `FAILED` after 2 hours.
 
-Health: `curl http://127.0.0.1:8080/actuator/health`
+- Health: `curl http://127.0.0.1:8080/actuator/health`
+- API docs (logged in): `http://127.0.0.1:8080/swagger-ui.html`
+
+## Syncing
+
+- **Sync now**: Accounts page, or `POST /api/accounts/{id}/sync?job=FULL|BACKFILL|STORIES`. One run per account at a time, across processes (409 if one is running).
+- **FULL** (scheduled, `PAGELENS_SYNC_CRON`): profile + follower snapshot, new posts, insights for posts < 7 days (and up to 25 stale older posts), comments for posts < 14 days, the last 3 days of account metrics, audience once a day.
+- **BACKFILL**: every post Meta returns (max 10K), insights for up to 500 posts without any, 90 days of account metrics. A new account's first FULL sync behaves like this automatically.
+- **STORIES** (`PAGELENS_STORIES_CRON`, every 3 h): live stories and their insights. Shows `SKIPPED` if Meta refuses the stories edge for the account (expected for some Instagram Login accounts).
+- Run outcomes: `SUCCEEDED`, `PARTIAL` (some steps failed; see the error text), `FAILED` (token invalid, rate-limited, or crashed), `SKIPPED`.
 
 ## Logs
 
@@ -33,7 +53,9 @@ All under `PAGELENS_LOG_DIR` (default `./logs`). JSON lines, rotated daily or at
 |---|---|---|
 | `app.log` | everything | 14 days |
 | `api-calls.log` | one line per Instagram API call (logger `pagelens.api-calls`) | 30 days |
-| `audit.log` | every write action (logger `pagelens.audit`) | 90 days |
+| `audit.log` | every state-changing action, e.g. connect and disconnect (logger `pagelens.audit`) | 90 days |
+
+The same information is in the database (`api_call_log`, `audit_log`, `sync_run`) and on the dashboard's **Logs** page. Click a correlation id there to see every line from that request or sync run. Access tokens and secrets are masked (`access_token=***`) before anything is logged or stored. Comment text is never logged.
 
 Every line from one request, sync run or MCP call shares a `correlationId`. HTTP responses return it in the `X-Correlation-Id` header.
 
@@ -55,6 +77,14 @@ The MCP process logs to **stderr and the log files only**. stdout is the MCP pro
 | `permission denied for schema pagelens` / `schema "pagelens" does not exist` | Run `scripts/db/create-schema.sql` as `postgres` (SETUP.md §2). |
 | Flyway `Validate failed: Migrations have failed validation` | A migration that already ran was edited. Never edit an applied migration; add a new `V<n>__*.sql`. |
 | Integration tests show as skipped | Start Docker Desktop. |
+| app-web won't start: `PAGELENS_WEB_PASSWORD_HASH is missing` | Generate it with `--hash-password` (SETUP.md §5). |
+| `PAGELENS_ENCRYPTION_KEY is not set` when connecting | Add the key to `.env` (SETUP.md §4 step 10) and restart. |
+| `Stored token could not be decrypted` | The encryption key changed. Restore the old key, or reconnect every account. |
+| Account shows **Needs reconnect** | Meta rejected the token (expired or revoked). Reconnect from Accounts. Synced data is kept. |
+| OAuth returns `redirect_uri` / URL-blocked error | The redirect URI isn't registered exactly as `PAGELENS_OAUTH_REDIRECT_URI`, or Meta refuses `http://localhost`. Use **Paste a token** instead. |
+| Sync `FAILED: rate limited` | Meta's budget is used up. Calls pause until the time Meta gives (see Logs → API calls). Don't retry repeatedly: failed calls count too. |
+| Metrics show `—` | Instagram didn't return them (hidden counts, under 100 followers, a metric that isn't supported for the format, or a story with fewer than 5 viewers). PageLens never stores these as 0. |
+| Dashboard shows "has not been built" | `cd frontend && npm run build`, then repackage. |
 
 ## Backup / restore
 

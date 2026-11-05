@@ -10,7 +10,7 @@ One-time setup for a local PageLens install. For day-to-day operation see [RUNBO
 | Maven | none needed | Use the bundled wrapper: `./mvnw` (or `mvnw.cmd`). |
 | PostgreSQL | 17 (any 14+) | Must be running locally on port 5432 (or set `PAGELENS_DB_URL`). |
 | Docker | any recent | Only for integration tests (Testcontainers). Without Docker those tests are skipped, not failed. |
-| Node.js | 22+ | Frontend, from Phase 1. |
+| Node.js | 22.18+ or 24.12+ | Dashboard build. The Vite toolchain declares this minimum. 22.17 built fine on 2026-11-05, but update if you see engine errors. |
 
 ## 2. Database
 
@@ -76,13 +76,36 @@ Names were checked against Meta's docs on 2026-11-05 (see [API_NOTES.md](API_NOT
     ```
     If you lose this key, stored tokens can't be decrypted and every account has to be reconnected. Back it up separately from the database.
 
-Connecting accounts (the OAuth flow) arrives in Phase 1.
+## 5. Dashboard login
 
-## 5. Verify the install
+The dashboard has one user. Build once, then generate a bcrypt hash of your chosen password (at least 10 characters):
 
 ```
-./mvnw verify                                   # build + tests (integration tests need Docker)
-java -jar app-web/target/pagelens-web.jar       # then open http://127.0.0.1:8080/actuator/health
+./mvnw -DskipTests package
+java -jar app-web/target/pagelens-web.jar --hash-password
 ```
 
-A health response with `"db":{"status":"UP"}` means the database connection and migrations work.
+Copy the printed `PAGELENS_WEB_PASSWORD_HASH=...` line into `.env` as-is. The username defaults to `admin` (`PAGELENS_WEB_USERNAME`). Without a valid hash, app-web refuses to start and says why. Five failed logins lock the client out for 15 minutes.
+
+## 6. Build and start
+
+```
+cd frontend && npm install && npm run build && cd ..   # builds the dashboard into app-web
+./mvnw -DskipTests package                             # bundles it into the jar
+java -jar app-web/target/pagelens-web.jar
+```
+
+Open <http://127.0.0.1:8080>, log in, and go to **Accounts**:
+
+- **Connect with Instagram / Connect with Facebook** runs the OAuth flow. Meta redirects back to `PAGELENS_OAUTH_REDIRECT_URI`, which must exactly match the App Dashboard entry.
+- **Paste a token** is the fallback if Meta rejects the localhost redirect. Generate a token in the App Dashboard (*Instagram → API setup with Instagram business login → Generate token*, valid 60 days) and paste it. Instagram Login tokens are refreshed automatically after that.
+
+The first sync starts automatically after connecting. It fetches all posts (Meta's cap is the newest 10K), insights, recent comments, 90 days of account metrics and audience demographics. Later syncs run on `PAGELENS_SYNC_CRON` (06:00 and 18:00 by default), stories every 3 hours.
+
+## 7. Verify the install
+
+```
+./mvnw verify            # build + tests (integration tests need Docker)
+```
+
+`http://127.0.0.1:8080/actuator/health` returns `{"status":"UP"}`. Logged in, it also shows the database status.

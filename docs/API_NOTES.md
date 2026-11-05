@@ -103,7 +103,7 @@ Sources: Meta's machine-readable docs index (`developers.facebook.com/documentat
 ### Comments (`/<IG_MEDIA_ID>/comments`)
 
 - Top-level only, reverse chronological, **at most 50 per query**. Replies come via field expansion `replies{...}`. There's no timestamp filtering.
-- The IG Comment reference page returns 404. PageLens requests `id,text,timestamp,username,like_count,hidden,parent_id` and falls back to `id,text,timestamp,username` if that's rejected. **Verify on first sync.**
+- The IG Comment reference page returns 404. PageLens requests `id,text,timestamp,username,like_count,hidden` (plus the same inside `replies{...}`, so a reply's parent is known from nesting) and falls back to `id,text,timestamp,username` if that's rejected. **Verify on first sync.**
 
 ### Stories (`/<IG_ID>/stories`)
 
@@ -119,7 +119,7 @@ Sources: Meta's machine-readable docs index (`developers.facebook.com/documentat
 
 - [ ] Whether Instagram Login and Facebook Login accept `http://localhost:8080/auth/callback`. Fallback: paste a dashboard-generated token.
 - [ ] `media_product_type` and `caption` availability with Instagram Login.
-- [ ] IG Comment fields `like_count`, `hidden`, `parent_id`.
+- [ ] IG Comment fields `like_count`, `hidden`.
 - [ ] `/stories` with Instagram Login.
 - [ ] Day boundary time zone of account insights.
 - [ ] Replace hand-written test fixtures with recorded real responses (tokens and personal data scrubbed).
