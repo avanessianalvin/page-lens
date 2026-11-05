@@ -19,10 +19,13 @@ async function logout() {
   <ConfirmDialog />
   <header v-if="session.authenticated" class="pl-header">
     <div class="pl-header-inner">
-      <RouterLink to="/accounts" class="pl-brand"><i class="pi pi-chart-bar" /> PageLens</RouterLink>
+      <RouterLink to="/overview" class="pl-brand"><i class="pi pi-chart-bar" /> PageLens</RouterLink>
       <nav>
-        <RouterLink to="/accounts">Accounts</RouterLink>
+        <RouterLink to="/overview">Overview</RouterLink>
         <RouterLink to="/posts">Posts</RouterLink>
+        <RouterLink to="/audience">Audience</RouterLink>
+        <RouterLink to="/analysis">Analysis</RouterLink>
+        <RouterLink to="/accounts">Accounts</RouterLink>
         <RouterLink to="/logs">Logs</RouterLink>
       </nav>
       <span class="pl-spacer" />

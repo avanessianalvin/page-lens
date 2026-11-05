@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Phase 2: MCP and analysis
+
+- **Analysis helpers** (`core/analysis`, local data only, no Instagram calls):
+  - Top and bottom posts by any metric.
+  - Format comparison: Reels, carousels, photos, feed videos.
+  - Best posting times by weekday × hour in the owner's zone.
+  - Follower growth, daily or per post.
+  - Caption stats by length, script (Farsi / Armenian / Latin / mixed), hashtags and call to action.
+  - An account overview: follower deltas, 7-day reach and views vs the previous week, best and worst recent posts.
+
+  Engagement rate is interactions / reach. Missing values are skipped, never counted as 0. Groups with fewer than 5 posts, and time slots with a single post, are flagged `smallSample`.
+- **REST:** `/api/accounts/{id}/overview` and `/api/accounts/{id}/analysis/{top-posts,formats,timing,growth,captions}`.
+- **MCP server `pagelens`** (official MCP Java SDK 2.1.0, stdio):
+  - 14 tools: `list_accounts`, `get_account_overview`, `list_posts`, `get_post_details`, `get_post_comments`, `get_top_posts`, `get_bottom_posts`, `compare_formats`, `get_best_posting_times`, `get_audience_breakdown`, `get_follower_growth`, `get_caption_stats`, `get_sync_status`, `sync_now`.
+  - Resources `pagelens://glossary/metrics` and `pagelens://accounts`; prompt `weekly_performance_review`.
+  - Compact JSON output: no nulls, times in the owner's zone, trimmed captions.
+  - Read tools carry `readOnlyHint`, and bad input returns a readable tool error.
+  - After the client closes stdin, the server finishes in-flight calls before exiting. A test covers a request sent right before close.
+- **Launchers:** `scripts/pagelens-mcp.cmd` and `.sh`, and Claude Code / Claude Desktop setup in SETUP.md §8.
+- **Dashboard:** new Overview (stat tiles, follower, reach and views trends, best and worst recent posts), Audience (ranked bars per dimension, small groups greyed, table view) and Analysis (format bars, posting-time heatmap, caption bars, top/bottom posts) pages. Shared chart components follow the dataviz rules: one hue, one axis, thin marks, hover tooltips and table views.
+- **Tests:** 68, none skipped. New ones cover the analysis rules (unit tests), the real MCP JSON-RPC protocol over pipes, and the analysis endpoints. I also checked the real jar end to end over stdio through both launchers.
+
+### Phase 2 decisions
+
+- `get_caption_stats` was added as a 14th MCP tool. It isn't in the plan's list, but caption analysis is part of the plan's Phase 2 analysis helpers.
+- `sync_now` is enabled by default but audited. It only reads from Instagram, so the write-action flag doesn't apply; `PAGELENS_MCP_SYNC_TOOL=false` hides it.
+- Caption language is detected by Unicode script, not by a language model. Arabic script counts as Farsi.
+- Overview reach sums daily reach, which over-counts people reached on several days; the UI and tool output say so.
+
 ### Phase 1: Read-only core
 
 - **Meta API research** recorded in `docs/API_NOTES.md` before any client code: Graph API pinned to v27.0, verified endpoints, fields and metrics per media type, deprecations (`impressions`, `follower_count`/`profile_views` no longer documented), rate-limit headers and codes, and a checklist of facts that need a live account to confirm.

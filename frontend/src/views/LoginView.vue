@@ -22,7 +22,7 @@ async function submit() {
   try {
     error.value = await session.login(username.value, password.value)
     if (!error.value) {
-      const next = typeof route.query.next === 'string' && route.query.next.startsWith('/') ? route.query.next : '/accounts'
+      const next = typeof route.query.next === 'string' && route.query.next.startsWith('/') && !route.query.next.startsWith('//') ? route.query.next : '/overview'
       router.push(next)
     }
   } catch {

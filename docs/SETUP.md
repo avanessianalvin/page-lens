@@ -109,3 +109,52 @@ The first sync starts automatically after connecting. It fetches all posts (Meta
 ```
 
 `http://127.0.0.1:8080/actuator/health` returns `{"status":"UP"}`. Logged in, it also shows the database status.
+
+## 8. Connect Claude (MCP)
+
+The MCP server is `app-mcp/target/pagelens-mcp.jar`. Claude starts it as a child process and talks to it over stdin/stdout. It reads the same database as the dashboard, so keep app-web running for scheduled syncs; the MCP process never syncs on its own (except through its `sync_now` tool).
+
+It needs **JDK 21** (your default `java` may be older, so use the full path) and two settings so it finds your `.env` and log folder from any working directory:
+
+| Variable | Value |
+|---|---|
+| `PAGELENS_ENV_FILE` | absolute path to `.env`, e.g. `K:/projects/page-lens/.env` |
+| `PAGELENS_LOG_DIR` | absolute path for logs, e.g. `K:/projects/page-lens/logs` (shared with app-web) |
+
+### Claude Code
+
+```
+claude mcp add pagelens --scope user \
+  -e PAGELENS_ENV_FILE=K:/projects/page-lens/.env \
+  -e PAGELENS_LOG_DIR=K:/projects/page-lens/logs \
+  -- "C:/Program Files/Java/jdk-21/bin/java.exe" -jar K:/projects/page-lens/app-mcp/target/pagelens-mcp.jar
+```
+
+Check it with `claude mcp list`. Inside a session, `/mcp` shows the server and its 14 tools.
+
+### Claude Desktop
+
+Edit `%APPDATA%\Claude\claude_desktop_config.json` (Settings → Developer → Edit Config), add the entry, and restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "pagelens": {
+      "command": "C:\\Program Files\\Java\\jdk-21\\bin\\java.exe",
+      "args": ["-jar", "K:\\projects\\page-lens\\app-mcp\\target\\pagelens-mcp.jar"],
+      "env": {
+        "PAGELENS_ENV_FILE": "K:\\projects\\page-lens\\.env",
+        "PAGELENS_LOG_DIR": "K:\\projects\\page-lens\\logs"
+      }
+    }
+  }
+}
+```
+
+The launchers `scripts/pagelens-mcp.cmd` (Windows) and `scripts/pagelens-mcp.sh` (macOS/Linux/Git Bash) set both variables relative to the repo. They pick Java from `PAGELENS_JAVA`, then `JAVA_HOME`. On Windows, use them as `"command": "cmd", "args": ["/c", "K:\\projects\\page-lens\\scripts\\pagelens-mcp.cmd"]`.
+
+### Try it
+
+Ask Claude things like "Which of my posts did best last month?", "Do Reels or carousels work better for me?", "When should I post?", "Where is my audience?", or use the **weekly_performance_review** prompt. Rebuild the jar (`./mvnw -DskipTests package`) after updating PageLens; Claude restarts the server on its next session.
+
+Set `PAGELENS_MCP_SYNC_TOOL=false` in the MCP server's env to hide `sync_now` (it only reads from Instagram, but it spends rate budget).

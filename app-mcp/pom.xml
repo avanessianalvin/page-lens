@@ -19,7 +19,12 @@
             <groupId>com.pagelens</groupId>
             <artifactId>pagelens-core</artifactId>
         </dependency>
-        <!-- The official MCP Java SDK (io.modelcontextprotocol.sdk:mcp) is added in Phase 2. -->
+        <!-- Official MCP Java SDK: mcp-core + the Jackson 3 JSON binding (matches Spring Boot 4). -->
+        <dependency>
+            <groupId>io.modelcontextprotocol.sdk</groupId>
+            <artifactId>mcp</artifactId>
+            <version>${mcp-sdk.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>com.pagelens</groupId>

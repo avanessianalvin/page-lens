@@ -30,7 +30,7 @@ npm run gen:api    # regenerate src/api/schema.d.ts from app-web/target/openapi.
 | What | Start | Stop |
 |---|---|---|
 | Dashboard / REST API / scheduler | `java -jar app-web/target/pagelens-web.jar` (rebuild the frontend first if it changed) | Ctrl+C |
-| MCP server | Launched by Claude (config arrives in Phase 2). For now `java -jar app-mcp/target/pagelens-mcp.jar` boots, checks the DB and exits. | n/a |
+| MCP server | Launched by Claude (SETUP.md §8). It runs while the Claude session is open. | Claude closes stdin; the server finishes in-flight calls (max 15 s) and exits |
 
 The dashboard listens on `http://127.0.0.1:8080` only. Only app-web runs scheduled syncs. A sync left `RUNNING` by a crashed process is marked `FAILED` after 2 hours.
 
@@ -44,6 +44,20 @@ The dashboard listens on `http://127.0.0.1:8080` only. Only app-web runs schedul
 - **BACKFILL**: every post Meta returns (max 10K), insights for up to 500 posts without any, 90 days of account metrics. A new account's first FULL sync behaves like this automatically.
 - **STORIES** (`PAGELENS_STORIES_CRON`, every 3 h): live stories and their insights. Shows `SKIPPED` if Meta refuses the stories edge for the account (expected for some Instagram Login accounts).
 - Run outcomes: `SUCCEEDED`, `PARTIAL` (some steps failed; see the error text), `FAILED` (token invalid, rate-limited, or crashed), `SKIPPED`.
+
+## MCP server
+
+- **Tools:** 13 read tools plus `sync_now`. Read tools answer from the local database only and never call Instagram. `sync_now` starts a background sync inside the MCP process (`triggered_by = mcp`, audited as `sync.start`). If Claude closes the session mid-sync, the run is abandoned and later marked `FAILED`.
+- **Resources and prompt:** resources `pagelens://glossary/metrics` and `pagelens://accounts`; prompt `weekly_performance_review`.
+- **Logs:** every tool call is logged as `MCP tool <name> ok in N ms` with its own `mcp-…` correlation id, in the shared `app.log` and on stderr. Claude Desktop also keeps the server's stderr in its own MCP log (Settings → Developer).
+- **Manual check** without Claude: pipe JSON-RPC lines into the launcher and read stdout. Every stdout line must be a JSON-RPC message:
+  ```
+  printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"check","version":"1"}}}' \
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_accounts","arguments":{}}}' \
+    | PAGELENS_JAVA="/c/Program Files/Java/jdk-21/bin/java" sh scripts/pagelens-mcp.sh
+  ```
+- Bad tool input (an unknown metric or account) comes back as a tool error listing the valid values, so Claude can correct itself.
 
 ## Logs
 
@@ -85,6 +99,9 @@ The MCP process logs to **stderr and the log files only**. stdout is the MCP pro
 | Sync `FAILED: rate limited` | Meta's budget is used up. Calls pause until the time Meta gives (see Logs → API calls). Don't retry repeatedly: failed calls count too. |
 | Metrics show `—` | Instagram didn't return them (hidden counts, under 100 followers, a metric that isn't supported for the format, or a story with fewer than 5 viewers). PageLens never stores these as 0. |
 | Dashboard shows "has not been built" | `cd frontend && npm run build`, then repackage. |
+| Claude shows the pagelens server as failed | Usually the wrong Java (it must be JDK 21; give the full path) or a missing `PAGELENS_ENV_FILE` (database login fails). Check the server's stderr in Claude's MCP log, or `logs/app.log`. |
+| Claude says the data is stale | Is app-web running? Only app-web runs scheduled syncs. Use `get_sync_status`, or ask Claude to call `sync_now`. |
+| Analysis says "smallSample" everywhere | Too few posts in the period. Widen it (`period=all`), or wait for more history. |
 
 ## Backup / restore
 

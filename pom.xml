@@ -28,6 +28,7 @@
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <springdoc.version>3.2.0</springdoc.version>
+        <mcp-sdk.version>2.1.0</mcp-sdk.version>
 
         <!--
           Security overrides of Spring Boot 4.1.2-managed versions (2026-11-05, flagged by Mend in the IDE).

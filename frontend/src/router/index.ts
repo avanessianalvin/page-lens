@@ -5,13 +5,16 @@ import { useSessionStore } from '@/stores/session'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/', redirect: '/accounts' },
+    { path: '/', redirect: '/overview' },
+    { path: '/overview', name: 'overview', component: () => import('@/views/OverviewView.vue') },
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { public: true } },
     { path: '/accounts', name: 'accounts', component: () => import('@/views/AccountsView.vue') },
     { path: '/posts', name: 'posts', component: () => import('@/views/PostsView.vue') },
     { path: '/posts/:id', name: 'post', component: () => import('@/views/PostDetailView.vue'), props: true },
+    { path: '/audience', name: 'audience', component: () => import('@/views/AudienceView.vue') },
+    { path: '/analysis', name: 'analysis', component: () => import('@/views/AnalysisView.vue') },
     { path: '/logs', name: 'logs', component: () => import('@/views/LogsView.vue') },
-    { path: '/:pathMatch(.*)*', redirect: '/accounts' },
+    { path: '/:pathMatch(.*)*', redirect: '/overview' },
   ],
 })
 
@@ -28,7 +31,7 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { next: to.fullPath } }
   }
   if (to.name === 'login' && session.authenticated) {
-    return { name: 'accounts' }
+    return { name: 'overview' }
   }
 })
 

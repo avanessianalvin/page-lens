@@ -219,6 +219,26 @@ class PageLensWebApplicationTest {
                 .extractingPath("$[0].action").isEqualTo("account.connect");
         assertThat(mvc.get().uri("/api/logs/app?limit=5").with(OWNER)).hasStatusOk();
         assertThat(mvc.get().uri("/api/posts/999999").with(OWNER)).hasStatus(404);
+
+        // Analysis (Phase 2)
+        assertThat(mvc.get().uri("/api/accounts/" + id + "/overview").with(OWNER)).hasStatusOk().bodyJson()
+                .extractingPath("$.bestRecent[0].reach").isEqualTo(900);
+        assertThat(mvc.get().uri("/api/accounts/" + id + "/analysis/top-posts?metric=engagement_rate&period=all&count=2")
+                .with(OWNER)).hasStatusOk().bodyJson().extractingPath("$.posts.length()").isEqualTo(2);
+        assertThat(mvc.get().uri("/api/accounts/" + id + "/analysis/top-posts?order=bottom&period=all").with(OWNER))
+                .bodyJson().extractingPath("$.order").isEqualTo("bottom");
+        assertThat(mvc.get().uri("/api/accounts/" + id + "/analysis/formats?period=all").with(OWNER)).hasStatusOk()
+                .bodyJson().extractingPath("$.formats[0].format").isEqualTo("REELS");
+        assertThat(mvc.get().uri("/api/accounts/" + id + "/analysis/timing?period=all").with(OWNER)).hasStatusOk()
+                .bodyJson().extractingPath("$.cells.length()").isEqualTo(3);
+        assertThat(mvc.get().uri("/api/accounts/" + id + "/analysis/growth").with(OWNER)).hasStatusOk()
+                .bodyJson().extractingPath("$.endFollowers").isEqualTo(1250);
+        assertThat(mvc.get().uri("/api/accounts/" + id + "/analysis/captions?period=all").with(OWNER)).hasStatusOk()
+                .bodyJson().extractingPath("$.posts").isEqualTo(3);
+        assertThat(mvc.get().uri("/api/accounts/" + id + "/analysis/top-posts?metric=impressions").with(OWNER))
+                .hasStatus(400);
+        assertThat(mvc.get().uri("/api/accounts/" + id + "/analysis/formats?period=last_week").with(OWNER))
+                .hasStatus(400);
     }
 
     @Test

@@ -30,6 +30,36 @@ export function relativeDays(iso?: string | null): string {
   return days === 1 ? 'yesterday' : `${days} days ago`
 }
 
+/** Engagement rate is a 0..1 ratio from the API. */
+export function formatRate(r?: number | null): string {
+  return r == null ? '—' : `${(r * 100).toFixed(1)} %`
+}
+
+/** "+12" / "−3" / "0"; dash when unknown. */
+export function formatDelta(n?: number | null): string {
+  if (n == null) return '—'
+  return n > 0 ? `+${new Intl.NumberFormat().format(n)}` : n < 0 ? `−${new Intl.NumberFormat().format(-n)}` : '0'
+}
+
+/** Change of `now` vs `before` as a signed percentage, or null when not computable. */
+export function pctChange(now?: number | null, before?: number | null): string | null {
+  if (now == null || before == null || before === 0) return null
+  const pct = ((now - before) / before) * 100
+  return `${pct >= 0 ? '+' : '−'}${Math.abs(pct).toFixed(0)} %`
+}
+
+export const PERIODS = [
+  { label: 'Last 7 days', value: 'last_7_days' },
+  { label: 'Last 30 days', value: 'last_30_days' },
+  { label: 'Last 90 days', value: 'last_90_days' },
+  { label: 'Last 365 days', value: 'last_365_days' },
+  { label: 'All time', value: 'all' },
+]
+
+export const FORMAT_LABELS: Record<string, string> = {
+  REELS: 'Reels', CAROUSEL: 'Carousels', IMAGE: 'Photos', VIDEO: 'Feed videos',
+}
+
 export const PRODUCT_TYPES = [
   { label: 'All formats', value: null },
   { label: 'Reels', value: 'REELS' },

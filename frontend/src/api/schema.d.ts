@@ -260,6 +260,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/accounts/{id}/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/accounts/{id}/insights/daily": {
         parameters: {
             query?: never;
@@ -284,6 +300,86 @@ export interface paths {
             cookie?: never;
         };
         get: operations["audience"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/{id}/analysis/top-posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["topPosts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/{id}/analysis/timing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["timing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/{id}/analysis/growth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["growth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/{id}/analysis/formats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["formats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/{id}/analysis/captions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["captions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -509,6 +605,58 @@ export interface components {
             /** Format: int64 */
             total?: number;
         };
+        Overview: {
+            account?: components["schemas"]["Account"];
+            token?: components["schemas"]["TokenHealth"];
+            /** Format: int64 */
+            followersChange7d?: number;
+            /** Format: int64 */
+            followersChange30d?: number;
+            /** Format: int64 */
+            reachLast7d?: number;
+            /** Format: int64 */
+            reachPrevious7d?: number;
+            /** Format: int64 */
+            viewsLast7d?: number;
+            /** Format: int64 */
+            viewsPrevious7d?: number;
+            /** Format: int32 */
+            postsLast30d?: number;
+            /** Format: double */
+            avgEngagementRateLast30d?: number;
+            bestRecent?: components["schemas"]["PostStat"][];
+            worstRecent?: components["schemas"]["PostStat"][];
+            lastRun?: components["schemas"]["SyncRun"];
+        };
+        PostStat: {
+            /** Format: int64 */
+            postId?: number;
+            igMediaId?: string;
+            /** @enum {string} */
+            format?: "REELS" | "CAROUSEL" | "IMAGE" | "VIDEO";
+            /** Format: date-time */
+            postedAt?: string;
+            caption?: string;
+            permalink?: string;
+            /** Format: int64 */
+            reach?: number;
+            /** Format: int64 */
+            views?: number;
+            /** Format: int64 */
+            likes?: number;
+            /** Format: int64 */
+            comments?: number;
+            /** Format: int64 */
+            shares?: number;
+            /** Format: int64 */
+            saves?: number;
+            /** Format: int64 */
+            follows?: number;
+            /** Format: int64 */
+            interactions?: number;
+            /** Format: double */
+            engagementRate?: number;
+        };
         DailyMetric: {
             /** Format: date */
             day?: string;
@@ -550,6 +698,121 @@ export interface components {
             /** Format: int64 */
             value?: number;
             smallSample?: boolean;
+        };
+        Range: {
+            /** Format: date-time */
+            from?: string;
+            /** Format: date-time */
+            to?: string;
+            label?: string;
+        };
+        RankedPosts: {
+            /** @enum {string} */
+            metric?: "REACH" | "VIEWS" | "LIKES" | "COMMENTS" | "SHARES" | "SAVES" | "FOLLOWS" | "TOTAL_INTERACTIONS" | "ENGAGEMENT_RATE";
+            order?: string;
+            range?: components["schemas"]["Range"];
+            /** Format: int32 */
+            consideredPosts?: number;
+            /** Format: int32 */
+            excludedNoData?: number;
+            posts?: components["schemas"]["PostStat"][];
+        };
+        PostingTimes: {
+            range?: components["schemas"]["Range"];
+            /** @enum {string} */
+            metric?: "REACH" | "VIEWS" | "LIKES" | "COMMENTS" | "SHARES" | "SAVES" | "FOLLOWS" | "TOTAL_INTERACTIONS" | "ENGAGEMENT_RATE";
+            timeZone?: string;
+            /** Format: int32 */
+            posts?: number;
+            cells?: components["schemas"]["TimeSlot"][];
+            byWeekday?: components["schemas"]["TimeSlot"][];
+            byHour?: components["schemas"]["TimeSlot"][];
+            bestSlots?: components["schemas"]["TimeSlot"][];
+            note?: string;
+        };
+        TimeSlot: {
+            /** Format: int32 */
+            weekday?: number;
+            /** Format: int32 */
+            hour?: number;
+            /** Format: int32 */
+            posts?: number;
+            /** Format: double */
+            avgValue?: number;
+            smallSample?: boolean;
+        };
+        FollowerGrowth: {
+            range?: components["schemas"]["Range"];
+            /** Format: int64 */
+            startFollowers?: number;
+            /** Format: int64 */
+            endFollowers?: number;
+            /** Format: int64 */
+            netChange?: number;
+            daily?: components["schemas"]["GrowthDay"][];
+            perPost?: components["schemas"]["PostGrowth"][];
+            note?: string;
+        };
+        GrowthDay: {
+            /** Format: date */
+            day?: string;
+            /** Format: int64 */
+            followers?: number;
+            /** Format: int64 */
+            delta?: number;
+        };
+        PostGrowth: {
+            post?: components["schemas"]["PostStat"];
+            /** Format: int64 */
+            followsFromPost?: number;
+            /** Format: int64 */
+            followerDeltaThatDay?: number;
+        };
+        FormatComparison: {
+            range?: components["schemas"]["Range"];
+            formats?: components["schemas"]["FormatStat"][];
+            note?: string;
+        };
+        FormatStat: {
+            /** @enum {string} */
+            format?: "REELS" | "CAROUSEL" | "IMAGE" | "VIDEO";
+            /** Format: int32 */
+            posts?: number;
+            /** Format: int32 */
+            postsWithInsights?: number;
+            /** Format: double */
+            avgReach?: number;
+            /** Format: double */
+            medianReach?: number;
+            /** Format: double */
+            avgViews?: number;
+            /** Format: double */
+            avgInteractions?: number;
+            /** Format: double */
+            avgEngagementRate?: number;
+            /** Format: double */
+            avgSaves?: number;
+            /** Format: double */
+            avgShares?: number;
+            smallSample?: boolean;
+        };
+        CaptionBucket: {
+            dimension?: string;
+            bucket?: string;
+            /** Format: int32 */
+            posts?: number;
+            /** Format: double */
+            avgReach?: number;
+            /** Format: double */
+            avgEngagementRate?: number;
+            smallSample?: boolean;
+        };
+        CaptionStats: {
+            range?: components["schemas"]["Range"];
+            /** Format: int32 */
+            posts?: number;
+            buckets?: components["schemas"]["CaptionBucket"][];
+            note?: string;
         };
         ConnectOptions: {
             instagramLogin?: boolean;
@@ -960,6 +1223,28 @@ export interface operations {
             };
         };
     };
+    overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Overview"];
+                };
+            };
+        };
+    };
     daily: {
         parameters: {
             query?: {
@@ -1005,6 +1290,140 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AudienceBreakdown"][];
+                };
+            };
+        };
+    };
+    topPosts: {
+        parameters: {
+            query?: {
+                metric?: string;
+                count?: number;
+                order?: string;
+                period?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RankedPosts"];
+                };
+            };
+        };
+    };
+    timing: {
+        parameters: {
+            query?: {
+                metric?: string;
+                period?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PostingTimes"];
+                };
+            };
+        };
+    };
+    growth: {
+        parameters: {
+            query?: {
+                period?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FollowerGrowth"];
+                };
+            };
+        };
+    };
+    formats: {
+        parameters: {
+            query?: {
+                period?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FormatComparison"];
+                };
+            };
+        };
+    };
+    captions: {
+        parameters: {
+            query?: {
+                period?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CaptionStats"];
                 };
             };
         };

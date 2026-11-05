@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-PageLens is a local-first Instagram Insights service (Instagram Graph API → PostgreSQL → MCP server + REST API + Vue dashboard). The full spec is `docs/Instagram Insights MCP Service Project Plan.md`. It is the source of truth for schema, REST endpoints, MCP tool names, and dashboard pages; read it before starting a phase. **Phases 0 and 1 are done**; see `CHANGELOG.md` for what exists and which decisions the owner has made. The owner makes all git commits: never commit.
+PageLens is a local-first Instagram Insights service (Instagram Graph API → PostgreSQL → MCP server + REST API + Vue dashboard). The full spec is `docs/Instagram Insights MCP Service Project Plan.md`. It is the source of truth for schema, REST endpoints, MCP tool names, and dashboard pages; read it before starting a phase. **Phases 0, 1 and 2 are done** (Phase 3, write actions, is next); see `CHANGELOG.md` for what exists and which decisions the owner has made. The owner makes all git commits: never commit.
 
 ## Commands
 
@@ -45,9 +45,16 @@ Spring Boot 4.1 (Jackson 3 = `tools.jackson.*`, modular starters such as `spring
   - `sync`: `SyncService` and `SyncScheduler`.
   - `repo`: `JdbcClient` repositories with explicit SQL, returning records. There is **no JPA**.
   - `crypto`: `TokenCipher`.
+  - `analysis`: `AnalysisService` loads local data, and `Analytics` holds the pure aggregation rules. Add new analysis rules there and unit-test them without a database. Shared by REST and MCP.
 - `app-web`: REST API (`com.pagelens.web.api`, under `/api`), Spring Security, the OAuth callback (`/auth/callback`), `SpaController` serving `static/index.html` for client routes, and `@EnableScheduling`. **Only app-web runs scheduled syncs.**
-- `app-mcp`: stdio MCP server named `pagelens`. The MCP Java SDK is added in Phase 2; for now the process boots and exits.
-- `frontend/`: Vue 3 + Vite + TS + Pinia + PrimeVue **4.5.5** + ECharts. `src/api/client.ts` wraps openapi-fetch and adds the XSRF header. Pages live in `src/views`.
+- `app-mcp`: stdio MCP server named `pagelens` (official MCP Java SDK 2.1.0, Jackson 3 binding).
+  - `PageLensTools` defines all tools: JSON-Schema inputs via `ToolArgs.Schema`, compact output via `McpViews` (no nulls, owner-zone times).
+  - `PageLensResources` holds the glossary resource (`src/main/resources/mcp/metric-glossary.md`) and prompts.
+  - `PageLensMcpServer` builds the server on any streams; tests use pipes.
+  - `StdioRunner` serves the real fd 0/1 and blocks until the client disconnects.
+  - Tool descriptions are what Claude uses to choose a tool, so keep them precise.
+  - On stdin EOF the server holds EOF back from the SDK transport until in-flight calls have answered (`EofSignallingInputStream`). The SDK closes its output the moment it reads EOF.
+- `frontend/`: Vue 3 + Vite + TS + Pinia + PrimeVue **4.5.5** + ECharts. `src/api/client.ts` wraps openapi-fetch and adds the XSRF header. Pages live in `src/views`. Charts use `src/components/charts/` (`LineChart`, `BarChart`, `HeatmapChart`, tokens in `theme.ts`), following the dataviz rules: one series and one axis per chart, a single hue (sequential blue for heatmaps), small samples in muted gray *and* labelled, a hover tooltip, and a table toggle.
 
 Both app main classes live in package `com.pagelens`, so scanning picks up `com.pagelens.core.*`. Don't define a `JsonMapper` bean in core, because Boot would back off its own web mapper. Core uses the `GraphJson` wrapper instead.
 
@@ -65,7 +72,8 @@ Logging: both apps include `core/src/main/resources/logback-pagelens-files.xml`,
 
 ## Critical constraints
 
-- **Never write to stdout in `app-mcp`**: no banner, no `System.out`, no console appender on stdout. `PageLensMcpApplicationTest` asserts stdout stays empty; keep it passing.
+- **Never write to stdout in `app-mcp`** except MCP frames: no banner, no `System.out`, no console appender on stdout. `PageLensMcpApplicationTest` asserts startup stdout stays empty, and `PageLensMcpProtocolTest` asserts every output line is JSON-RPC; keep both passing. The launch scripts must not echo anything either.
+- MCP read tools must never call Instagram. Only `sync_now` may, and it's audited. Tool output goes into Claude's context, so keep it compact, and use `limit` parameters for anything list-shaped.
 - **Never log or return tokens or secrets.** Route every URL and message through `SecretMasker` before logging or storing it. Records holding tokens (`AccountRef`, `IssuedToken`, `StoredToken`, `TokenConnectRequest`) override `toString()` to exclude them. Keep comment text out of logs.
 - Accounts use either Instagram Login (`graph.instagram.com`, `/me` returns `user_id` = the IG account id) or Facebook Login (`graph.facebook.com`, a linked Page). Fields and metrics differ between the two (see API_NOTES), so requests degrade gracefully instead of failing.
 - Tokens are stored AES-256-GCM encrypted, with the account id as associated data. The key is `PAGELENS_ENCRYPTION_KEY`. Never commit `.env` or `application-local.yml`.

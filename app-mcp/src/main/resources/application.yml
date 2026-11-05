@@ -7,6 +7,11 @@ spring:
     web-application-type: none
   # Shared settings (database, Flyway, .env loading) come from core's classpath:/config/application.yml.
   # Claude launches this process from an arbitrary working directory, so pass settings as env vars in the
-  # MCP client config, or set PAGELENS_ENV_FILE to an absolute path.
+  # MCP client config, or set PAGELENS_ENV_FILE to an absolute path (scripts/pagelens-mcp.* do this).
   profiles:
     default: dev
+
+pagelens:
+  mcp:
+    stdio-enabled: true
+    sync-tool-enabled: ${PAGELENS_MCP_SYNC_TOOL:true}

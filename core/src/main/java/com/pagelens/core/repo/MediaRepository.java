@@ -168,6 +168,16 @@ public class MediaRepository {
         return new Page<>(items, total);
     }
 
+    /** All non-story posts (with latest snapshot) posted in [from, to), oldest first: input for analysis. */
+    public List<Post> postsInRange(long accountId, Instant from, Instant to) {
+        return jdbc.sql(POST_SELECT + """
+                         WHERE m.account_id = :acc AND m.is_story = FALSE AND m.posted_at >= :from AND m.posted_at < :to
+                         ORDER BY m.posted_at
+                        """)
+                .param("acc", accountId).param("from", ts(from)).param("to", ts(to))
+                .query(MediaRepository::post).list();
+    }
+
     public Optional<Post> findPost(long mediaId) {
         return jdbc.sql(POST_SELECT + " WHERE m.id = :id").param("id", mediaId).query(MediaRepository::post).optional();
     }
