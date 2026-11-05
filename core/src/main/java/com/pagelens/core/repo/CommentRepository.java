@@ -80,6 +80,53 @@ public class CommentRepository {
         return top;
     }
 
+    /** Everything a write action needs to know about one comment, including its media's account. */
+    public record Target(long id, String igCommentId, Long parentId, String parentIgCommentId, boolean hidden,
+                         String username, long mediaId, String igMediaId, long accountId, String accountUsername) {
+    }
+
+    public java.util.Optional<Target> findTarget(long commentId) {
+        return jdbc.sql("""
+                        SELECT c.id, c.ig_comment_id, c.parent_id, p.ig_comment_id AS parent_ig_id, c.hidden, c.username,
+                               m.id AS media_id, m.ig_media_id, a.id AS account_id, a.username AS account_username
+                        FROM comment c
+                        JOIN media m ON m.id = c.media_id
+                        JOIN ig_account a ON a.id = m.account_id
+                        LEFT JOIN comment p ON p.id = c.parent_id
+                        WHERE c.id = :id
+                        """)
+                .param("id", commentId)
+                .query((rs, n) -> new Target(rs.getLong("id"), rs.getString("ig_comment_id"), lng(rs, "parent_id"),
+                        rs.getString("parent_ig_id"), rs.getBoolean("hidden"), rs.getString("username"),
+                        rs.getLong("media_id"), rs.getString("ig_media_id"), rs.getLong("account_id"),
+                        rs.getString("account_username")))
+                .optional();
+    }
+
+    /** Stores a reply PageLens just posted, so it shows up before the next sync. */
+    public long insertOwnReply(long mediaId, long parentId, String igCommentId, String username, String text,
+                               Instant postedAt) {
+        return jdbc.sql("""
+                        INSERT INTO comment (media_id, ig_comment_id, parent_id, username, text, like_count, posted_at, hidden)
+                        VALUES (:media, :igId, :parent, :username, :text, 0, :posted, FALSE)
+                        ON CONFLICT (ig_comment_id) DO UPDATE SET text = EXCLUDED.text
+                        RETURNING id
+                        """)
+                .param("media", mediaId).param("igId", igCommentId).param("parent", parentId)
+                .param("username", username).param("text", text).param("posted", ts(postedAt))
+                .query(Long.class).single();
+    }
+
+    public void setHidden(long commentId, boolean hidden) {
+        jdbc.sql("UPDATE comment SET hidden = :h, updated_at = CURRENT_TIMESTAMP WHERE id = :id")
+                .param("h", hidden).param("id", commentId).update();
+    }
+
+    /** Deletes the comment and (via ON DELETE CASCADE) its replies. */
+    public void delete(long commentId) {
+        jdbc.sql("DELETE FROM comment WHERE id = :id").param("id", commentId).update();
+    }
+
     private record Row(long id, String igCommentId, Long parentId, String username, String text, Long likeCount,
                        Instant postedAt, boolean hidden) {
         Comment toComment(List<Comment> replies) {

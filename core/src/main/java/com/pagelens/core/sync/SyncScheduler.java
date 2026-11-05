@@ -26,11 +26,14 @@ public class SyncScheduler {
     private final SyncService sync;
     private final TokenService tokens;
     private final AccountRepository accounts;
+    private final com.pagelens.core.write.PublishService publisher;
 
-    public SyncScheduler(SyncService sync, TokenService tokens, AccountRepository accounts) {
+    public SyncScheduler(SyncService sync, TokenService tokens, AccountRepository accounts,
+                         com.pagelens.core.write.PublishService publisher) {
         this.sync = sync;
         this.tokens = tokens;
         this.accounts = accounts;
+        this.publisher = publisher;
     }
 
     @Scheduled(cron = "${pagelens.sync.cron}")
@@ -56,6 +59,10 @@ public class SyncScheduler {
         int n = sync.failStaleRuns();
         if (n > 0) {
             log.warn("Marked {} abandoned sync run(s) as FAILED", n);
+        }
+        int p = publisher.recoverStale();
+        if (p > 0) {
+            log.warn("Resolved {} interrupted publish job(s); see the Publish page", p);
         }
     }
 

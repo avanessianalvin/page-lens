@@ -158,3 +158,19 @@ The launchers `scripts/pagelens-mcp.cmd` (Windows) and `scripts/pagelens-mcp.sh`
 Ask Claude things like "Which of my posts did best last month?", "Do Reels or carousels work better for me?", "When should I post?", "Where is my audience?", or use the **weekly_performance_review** prompt. Rebuild the jar (`./mvnw -DskipTests package`) after updating PageLens; Claude restarts the server on its next session.
 
 Set `PAGELENS_MCP_SYNC_TOOL=false` in the MCP server's env to hide `sync_now` (it only reads from Instagram, but it spends rate budget).
+
+## 9. Write actions (optional)
+
+Replying to, hiding and deleting comments, and publishing, are **off by default**. To turn them on:
+
+1. Set `PAGELENS_WRITE_ACTIONS_ENABLED=true` in `.env` and restart app-web.
+2. **Reconnect every account** on the Accounts page. Publishing needs a permission that PageLens only requests since Phase 3: `instagram_business_content_publish` (Instagram Login) or `instagram_content_publish` (Facebook Login). Comment moderation was already included. In the Meta App Dashboard, add the publish permission to the app first.
+3. Optional, for Claude: add `"PAGELENS_WRITE_ACTIONS_ENABLED": "true"` **and** `"PAGELENS_MCP_WRITE_TOOLS": "true"` to the MCP server's `env` (SETUP.md §8; for Claude Code add `-e` flags). Claude then gets `reply_to_comment`, `hide_comment`, `publish_post` and `get_publish_status`. They run as a dry run unless Claude passes `dry_run=false`, and Claude asks you before running a write tool.
+
+What publishing can and can't do (Meta's rules, see `docs/API_NOTES.md`):
+
+- Photo, Reel, story or carousel (2–20 items), **published immediately**. There's no scheduling.
+- **Media comes from a public URL** Instagram downloads (JPEG images ≤ 8 MB; MP4/MOV video). PageLens runs only on your machine, so it can't serve your files to Instagram. For **Facebook Login** accounts, videos can also be uploaded from this computer (Publish page → *Upload file*).
+- 50 API-published posts per 24 hours. Captions up to 2200 characters, 30 hashtags and 20 @-mentions.
+- Captions can't be edited afterwards, and PageLens doesn't delete posts. Use the Instagram app for both.
+- Every action, dry run or real, is in the audit trail (Logs → Audit trail), with the actor `ui` or `mcp`.

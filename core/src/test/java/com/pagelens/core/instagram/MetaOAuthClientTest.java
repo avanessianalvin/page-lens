@@ -27,13 +27,14 @@ class MetaOAuthClientTest {
     }
 
     @Test
-    void authorizationUrlsCarryStateAndReadOnlyScopes() {
+    void authorizationUrlsCarryStateAndScopes() {
         String ig = kit.oauth.authorizationUrl(LoginType.INSTAGRAM_LOGIN, "st4te");
         assertThat(ig).startsWith(fake.url() + "/oauth/authorize?client_id=ig-app")
                 .contains("state=st4te", "response_type=code",
                         "redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fauth%2Fcallback",
                         "instagram_business_manage_insights")
-                .doesNotContain("content_publish", "ig-secret");
+                .contains("instagram_business_content_publish") // publishing (Phase 3)
+                .doesNotContain("ig-secret");
 
         String fb = kit.oauth.authorizationUrl(LoginType.FACEBOOK_LOGIN, "st4te");
         assertThat(fb).startsWith(fake.url() + "/v27.0/dialog/oauth?client_id=fb-app")

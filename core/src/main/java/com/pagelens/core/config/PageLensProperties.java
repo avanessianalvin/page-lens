@@ -13,9 +13,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param timeZone            zone for display and best-time analysis; blank means the system default
  * @param writeActionsEnabled master switch for publish/reply/hide/delete (off by default)
  * @param encryptionKey       base64 AES-256 key for stored access tokens
+ * @param uploadDir           staging folder for local video uploads
  */
 @ConfigurationProperties(prefix = "pagelens")
-public record PageLensProperties(String logDir, String timeZone, boolean writeActionsEnabled, String encryptionKey) {
+public record PageLensProperties(String logDir, String timeZone, boolean writeActionsEnabled, String encryptionKey,
+                                 String uploadDir) {
 
     /** The zone used for display and analysis. Storage is always UTC regardless of this value. */
     public ZoneId zoneId() {

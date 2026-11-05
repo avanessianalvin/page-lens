@@ -35,6 +35,40 @@ final class ToolArgs {
         return Math.clamp(n, min, max);
     }
 
+    boolean bool(String name, boolean def) {
+        Object v = args.get(name);
+        if (v instanceof Boolean b) {
+            return b;
+        }
+        return v == null || v.toString().isBlank() ? def : Boolean.parseBoolean(v.toString().trim());
+    }
+
+    Integer optionalInt(String name) {
+        Object v = args.get(name);
+        if (v instanceof Number n) {
+            return n.intValue();
+        }
+        return v == null || v.toString().isBlank() ? null : Integer.valueOf(v.toString().trim());
+    }
+
+    /** A list of JSON objects, e.g. publish_post's media. */
+    @SuppressWarnings("unchecked")
+    java.util.List<Map<String, Object>> objects(String name) {
+        Object v = args.get(name);
+        if (v == null) {
+            return java.util.List.of();
+        }
+        if (!(v instanceof java.util.List<?> list)) {
+            throw new IllegalArgumentException(name + " must be a list");
+        }
+        return list.stream().map(o -> {
+            if (!(o instanceof Map<?, ?> m)) {
+                throw new IllegalArgumentException(name + " items must be objects");
+            }
+            return (Map<String, Object>) m;
+        }).toList();
+    }
+
     long requiredLong(String name) {
         Object v = args.get(name);
         if (v instanceof Number num) {
@@ -63,6 +97,12 @@ final class ToolArgs {
 
         Schema enumProp(String name, List<String> values, String description) {
             properties.put(name, Map.of("type", "string", "enum", values, "description", description));
+            return this;
+        }
+
+        /** Any JSON-Schema fragment, for arrays and objects. */
+        Schema raw(String name, Map<String, Object> schema) {
+            properties.put(name, schema);
             return this;
         }
 

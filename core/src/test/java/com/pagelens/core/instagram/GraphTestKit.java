@@ -45,7 +45,7 @@ final class GraphTestKit {
                 Duration.ofMillis(5), 75, 95);
         this.meta = new MetaProperties("v27.0", "fb-app", "fb-secret", "ig-app", "ig-secret",
                 "http://localhost:8080/auth/callback",
-                new MetaProperties.Endpoints(fake.url(), fake.url(), fake.url(), fake.url() + "/oauth/authorize", fake.url()));
+                new MetaProperties.Endpoints(fake.url(), fake.url(), fake.url(), fake.url() + "/oauth/authorize", fake.url(), fake.url()));
         Clock clock = Clock.systemUTC();
         this.guard = new RateLimitGuard(recorder, http, clock);
         this.client = new GraphApiClient(http, meta, guard, recorder, new GraphJson(), clock);

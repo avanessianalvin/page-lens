@@ -47,7 +47,7 @@ The dashboard listens on `http://127.0.0.1:8080` only. Only app-web runs schedul
 
 ## MCP server
 
-- **Tools:** 13 read tools plus `sync_now`. Read tools answer from the local database only and never call Instagram. `sync_now` starts a background sync inside the MCP process (`triggered_by = mcp`, audited as `sync.start`). If Claude closes the session mid-sync, the run is abandoned and later marked `FAILED`.
+- **Tools:** 13 read tools plus `sync_now` (and 4 write tools when enabled, see below). Read tools answer from the local database only and never call Instagram. `sync_now` starts a background sync inside the MCP process (`triggered_by = mcp`, audited as `sync.start`). If Claude closes the session mid-sync, the run is abandoned and later marked `FAILED`.
 - **Resources and prompt:** resources `pagelens://glossary/metrics` and `pagelens://accounts`; prompt `weekly_performance_review`.
 - **Logs:** every tool call is logged as `MCP tool <name> ok in N ms` with its own `mcp-…` correlation id, in the shared `app.log` and on stderr. Claude Desktop also keeps the server's stderr in its own MCP log (Settings → Developer).
 - **Manual check** without Claude: pipe JSON-RPC lines into the launcher and read stdout. Every stdout line must be a JSON-RPC message:
@@ -58,6 +58,26 @@ The dashboard listens on `http://127.0.0.1:8080` only. Only app-web runs schedul
     | PAGELENS_JAVA="/c/Program Files/Java/jdk-21/bin/java" sh scripts/pagelens-mcp.sh
   ```
 - Bad tool input (an unknown metric or account) comes back as a tool error listing the valid values, so Claude can correct itself.
+- **Write tools** (`reply_to_comment`, `hide_comment`, `publish_post`, `get_publish_status`) appear only when the MCP process has both `PAGELENS_WRITE_ACTIONS_ENABLED=true` and `PAGELENS_MCP_WRITE_TOOLS=true`. They default to `dry_run=true`. Claude can publish from public URLs only, not local uploads.
+
+## Write actions
+
+- **Switch:** `PAGELENS_WRITE_ACTIONS_ENABLED` (default `false`, read at startup). When off, every write returns 403 / a tool error and is audited as `disabled`. Dry runs still work and say why they'd fail. `GET /api/write-status` shows the state.
+- **Comments:** reply (top-level threads only; Instagram attaches replies-to-replies to the thread), hide/unhide, delete (permanent, including its replies). Comment text is never logged or audited, only its length.
+- **Publishing:** `POST /api/publish` (with `dryRun`) → job → `GET /api/publish/{id}/status`. The job steps are:
+  1. `QUEUED`
+  2. `CREATING`: containers are created and their ids stored at once.
+  3. `PROCESSING`: the container status is polled, starting at 2 s and backing off to once a minute.
+  4. `PUBLISHING`
+  5. `PUBLISHED`, or `FAILED` with the reason.
+- **Never double-posts:**
+  - One job per idempotency key (the dashboard sends a fresh key per Publish click; Claude's default key is a hash of the content).
+  - Write calls are never auto-retried.
+  - Before and after `media_publish`, Instagram's container status decides whether the post went out.
+- **Retry** (Publish page, or `POST /api/publish/{id}/retry`) reuses the container while Instagram still has it (containers expire after 24 h).
+- **Interrupted jobs:** if app-web stopped mid-publish, the scheduler resolves the job within about 10 minutes of restart. If Instagram says the container was published, the job becomes `PUBLISHED`. Otherwise it becomes `FAILED`, so you can check Instagram and retry. PageLens never re-publishes on its own.
+- **Uploads:** local videos are staged in `PAGELENS_UPLOAD_DIR` (default `data/uploads`, git-ignored) and deleted after a successful publish. Files left behind by failed jobs can be deleted by hand.
+- **Quota:** `GET /api/publish/quota?accountId=` shows usage of Instagram's 50 posts per 24 h.
 
 ## Logs
 
@@ -101,6 +121,11 @@ The MCP process logs to **stderr and the log files only**. stdout is the MCP pro
 | Dashboard shows "has not been built" | `cd frontend && npm run build`, then repackage. |
 | Claude shows the pagelens server as failed | Usually the wrong Java (it must be JDK 21; give the full path) or a missing `PAGELENS_ENV_FILE` (database login fails). Check the server's stderr in Claude's MCP log, or `logs/app.log`. |
 | Claude says the data is stale | Is app-web running? Only app-web runs scheduled syncs. Use `get_sync_status`, or ask Claude to call `sync_now`. |
+| Write buttons are greyed out / 403 "Write actions are disabled" | Set `PAGELENS_WRITE_ACTIONS_ENABLED=true` in `.env` and restart. For Claude, also set the MCP env vars (SETUP.md §9). |
+| "connected without the publishing permission" | Reconnect the account; Phase 3 added the publish scope to the login request. |
+| Publish fails "Instagram could not process the media" | The file format is wrong. JPEG only for images; MP4/MOV with H.264/HEVC video and AAC audio, 3 s–15 min (stories 3–60 s). |
+| Publish fails with an "is a local/private address" or HTTP 4xx check | Instagram must download the media itself: put it on a public https server (or upload a video file, Facebook Login accounts only). |
+| Job stuck in PROCESSING | Large videos can take minutes. After the timeout the job fails with "still processing"; Retry later reuses the same container. |
 | Analysis says "smallSample" everywhere | Too few posts in the period. Widen it (`period=all`), or wait for more history. |
 
 ## Backup / restore

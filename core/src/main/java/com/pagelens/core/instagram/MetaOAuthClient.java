@@ -26,12 +26,18 @@ import tools.jackson.databind.JsonNode;
 @Component
 public class MetaOAuthClient {
 
-    /** Read-only scopes for Phase 1. Publish scopes are added in Phase 3. */
+    /** Scopes requested at connect time: read, comment moderation and (from Phase 3) publishing. */
     public static final List<String> INSTAGRAM_SCOPES = List.of(
-            "instagram_business_basic", "instagram_business_manage_insights", "instagram_business_manage_comments");
+            "instagram_business_basic", "instagram_business_manage_insights", "instagram_business_manage_comments",
+            "instagram_business_content_publish");
     public static final List<String> FACEBOOK_SCOPES = List.of(
-            "instagram_basic", "instagram_manage_insights", "instagram_manage_comments",
+            "instagram_basic", "instagram_manage_insights", "instagram_manage_comments", "instagram_content_publish",
             "pages_show_list", "pages_read_engagement");
+
+    /** The publish scope for a login type; tokens stored without it need a reconnect before publishing. */
+    public static String publishScope(LoginType type) {
+        return type == LoginType.INSTAGRAM_LOGIN ? "instagram_business_content_publish" : "instagram_content_publish";
+    }
 
     /** Meta's long-lived tokens last ~60 days; used when a response omits expires_in. */
     private static final Duration DEFAULT_LONG_LIVED = Duration.ofDays(60);

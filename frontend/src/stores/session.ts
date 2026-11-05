@@ -8,6 +8,9 @@ export const useSessionStore = defineStore('session', () => {
   const username = ref<string | null>(null)
   const timeZone = ref<string>(Intl.DateTimeFormat().resolvedOptions().timeZone)
   const checked = ref(false)
+  /** Server-side master switch for replying, hiding, deleting comments and publishing. */
+  const writeActionsEnabled = ref(false)
+  const writeActionsHint = ref<string | null>(null)
 
   async function refresh() {
     const s = await call(api.GET('/api/auth/session'))
@@ -15,8 +18,13 @@ export const useSessionStore = defineStore('session', () => {
     username.value = s.username ?? null
     checked.value = true
     if (authenticated.value) {
-      const settings = await call(api.GET('/api/settings'))
+      const [settings, writes] = await Promise.all([
+        call(api.GET('/api/settings')),
+        call(api.GET('/api/write-status')),
+      ])
       if (settings.timeZone) timeZone.value = settings.timeZone
+      writeActionsEnabled.value = !!writes.writeActionsEnabled
+      writeActionsHint.value = writes.howToEnable ?? null
     }
   }
 
@@ -47,5 +55,5 @@ export const useSessionStore = defineStore('session', () => {
     username.value = null
   }
 
-  return { authenticated, username, timeZone, checked, refresh, login, logout }
+  return { authenticated, username, timeZone, checked, writeActionsEnabled, writeActionsHint, refresh, login, logout }
 })

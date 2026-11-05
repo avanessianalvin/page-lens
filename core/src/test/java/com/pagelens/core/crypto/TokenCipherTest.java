@@ -15,7 +15,7 @@ class TokenCipherTest {
     static final String KEY = Base64.getEncoder().encodeToString(new byte[32]);
 
     private static TokenCipher cipher(String key) {
-        return new TokenCipher(new PageLensProperties("logs", "", false, key));
+        return new TokenCipher(new PageLensProperties("logs", "", false, key, null));
     }
 
     @Test

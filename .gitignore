@@ -5,6 +5,9 @@
 application-local.yml
 *.key
 
+# Local video uploads staged for publishing
+data/
+
 # Build output
 target/
 logs/

@@ -13,6 +13,7 @@ const router = createRouter({
     { path: '/posts/:id', name: 'post', component: () => import('@/views/PostDetailView.vue'), props: true },
     { path: '/audience', name: 'audience', component: () => import('@/views/AudienceView.vue') },
     { path: '/analysis', name: 'analysis', component: () => import('@/views/AnalysisView.vue') },
+    { path: '/publish', name: 'publish', component: () => import('@/views/PublishView.vue') },
     { path: '/logs', name: 'logs', component: () => import('@/views/LogsView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/overview' },
   ],

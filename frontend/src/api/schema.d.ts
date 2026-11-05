@@ -4,6 +4,86 @@
  */
 
 export interface paths {
+    "/api/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["jobs"];
+        put?: never;
+        post: operations["publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/publish/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/publish/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/comments/{id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/comments/{id}/hide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["hide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/accounts/{id}/sync": {
         parameters: {
             query?: never;
@@ -46,6 +126,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["connectWithToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/write-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["status"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -108,6 +204,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["rateLimit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/publish/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["job"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/publish/quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["quota"];
         put?: never;
         post?: never;
         delete?: never;
@@ -404,10 +532,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/comments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Item: {
+            /** @enum {string} */
+            type?: "IMAGE" | "VIDEO";
+            url?: string;
+            uploadId?: string;
+        };
+        Options: {
+            shareToFeed?: boolean;
+            coverUrl?: string;
+            /** Format: int32 */
+            thumbOffsetMs?: number;
+            altText?: string;
+        };
+        PublishBody: {
+            /** Format: int64 */
+            accountId: number;
+            /** @enum {string} */
+            kind: "IMAGE" | "REEL" | "STORY" | "CAROUSEL";
+            caption?: string;
+            items?: components["schemas"]["Item"][];
+            options?: components["schemas"]["Options"];
+            dryRun?: boolean;
+            idempotencyKey?: string;
+        };
+        WriteResult: {
+            dryRun?: boolean;
+            ok?: boolean;
+            errors?: string[];
+            warnings?: string[];
+            details?: {
+                [key: string]: unknown;
+            };
+        };
+        Upload: {
+            id?: string;
+            /** Format: int64 */
+            size?: number;
+            originalName?: string;
+        };
+        ReplyRequest: {
+            message?: string;
+            dryRun?: boolean;
+        };
+        HideRequest: {
+            hidden?: boolean;
+            dryRun?: boolean;
+        };
         SyncStarted: {
             /** Format: int64 */
             runId?: number;
@@ -464,6 +655,10 @@ export interface components {
             lastRefreshedAt?: string;
             expiringSoon?: boolean;
         };
+        WriteStatus: {
+            writeActionsEnabled?: boolean;
+            howToEnable?: string;
+        };
         SyncRun: {
             /** Format: int64 */
             id?: number;
@@ -495,6 +690,40 @@ export interface components {
             usagePercent?: number;
             /** Format: date-time */
             blockedUntil?: string;
+        };
+        PublishJob: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: int64 */
+            accountId?: number;
+            accountUsername?: string;
+            idempotencyKey?: string;
+            /** @enum {string} */
+            kind?: "IMAGE" | "REEL" | "STORY" | "CAROUSEL";
+            caption?: string;
+            /** Format: int32 */
+            itemCount?: number;
+            actor?: string;
+            /** @enum {string} */
+            status?: "QUEUED" | "CREATING" | "PROCESSING" | "PUBLISHING" | "PUBLISHED" | "FAILED";
+            containerId?: string;
+            igMediaId?: string;
+            permalink?: string;
+            errorMessage?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            /** Format: date-time */
+            publishedAt?: string;
+        };
+        PublishQuota: {
+            /** Format: int32 */
+            used?: number;
+            /** Format: int32 */
+            total?: number;
+            /** Format: int64 */
+            durationSeconds?: number;
         };
         Post: {
             /** Format: int64 */
@@ -828,6 +1057,154 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    jobs: {
+        parameters: {
+            query?: {
+                accountId?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PublishJob"][];
+                };
+            };
+        };
+    };
+    publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WriteResult"];
+                };
+            };
+        };
+    };
+    retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WriteResult"];
+                };
+            };
+        };
+    };
+    upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Upload"];
+                };
+            };
+        };
+    };
+    reply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WriteResult"];
+                };
+            };
+        };
+    };
+    hide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HideRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WriteResult"];
+                };
+            };
+        };
+    };
     syncNow: {
         parameters: {
             query?: {
@@ -896,6 +1273,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AccountView"][];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WriteStatus"];
                 };
             };
         };
@@ -983,6 +1380,50 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["RateLimit"];
+                };
+            };
+        };
+    };
+    job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PublishJob"];
+                };
+            };
+        };
+    };
+    quota: {
+        parameters: {
+            query: {
+                accountId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PublishQuota"];
                 };
             };
         };
@@ -1444,6 +1885,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ConnectOptions"];
+                };
+            };
+        };
+    };
+    delete: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WriteResult"];
                 };
             };
         };

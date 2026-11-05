@@ -19,6 +19,9 @@ public final class PageLensTestProperties {
         r.add("pagelens.meta.endpoints.instagram-api", fake::url);
         r.add("pagelens.meta.endpoints.instagram-authorize", () -> fake.url() + "/oauth/authorize");
         r.add("pagelens.meta.endpoints.facebook-dialog", fake::url);
+        r.add("pagelens.meta.endpoints.rupload", fake::url);
+        r.add("pagelens.upload-dir", () -> "target/test-uploads");
+        r.add("pagelens.testing.allow-private-media-hosts", () -> "true"); // media URLs point at the fake server
         r.add("pagelens.meta.app-id", () -> "fb-app");
         r.add("pagelens.meta.app-secret", () -> "fb-secret");
         r.add("pagelens.meta.instagram-app-id", () -> "ig-app");

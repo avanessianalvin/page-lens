@@ -85,12 +85,63 @@ public class GraphApiClient {
         return send(accountId, "POST", url, encode(form));
     }
 
+    /**
+     * A write (reply, hide, create container, publish): form-encoded POST, sent <b>exactly once</b>. Writes are
+     * never retried automatically, because a retry after a lost response could reply or publish twice. Callers
+     * decide, usually after checking state on Instagram.
+     */
+    public JsonNode postWrite(Long accountId, String url, Map<String, String> form) {
+        return sendOnce(accountId, new Call("POST", url, "application/x-www-form-urlencoded",
+                HttpRequest.BodyPublishers.ofString(encode(form)), Map.of(), props.requestTimeout()));
+    }
+
+    /** DELETE with query parameters, sent exactly once (see {@link #postWrite}). */
+    public JsonNode deleteWrite(Long accountId, String url, Map<String, String> params) {
+        String query = encode(params);
+        return sendOnce(accountId, new Call("DELETE", query.isEmpty() ? url : url + "?" + query, null,
+                HttpRequest.BodyPublishers.noBody(), Map.of(), props.requestTimeout()));
+    }
+
+    /**
+     * Raw binary upload (resumable video upload to rupload.facebook.com), starting at {@code offset}.
+     * {@code headers} may carry the access token ({@code Authorization: OAuth ...}); headers are never logged.
+     */
+    public JsonNode uploadFile(Long accountId, String url, Map<String, String> headers, java.nio.file.Path file,
+                               long offset) {
+        HttpRequest.BodyPublisher body;
+        try {
+            body = offset == 0 ? HttpRequest.BodyPublishers.ofFile(file)
+                    : HttpRequest.BodyPublishers.ofInputStream(() -> {
+                        try {
+                            var in = java.nio.file.Files.newInputStream(file);
+                            in.skipNBytes(offset);
+                            return in;
+                        } catch (IOException e) {
+                            throw new java.io.UncheckedIOException(e);
+                        }
+                    });
+        } catch (java.io.FileNotFoundException e) {
+            throw new IllegalArgumentException("Upload file not found: " + file.getFileName());
+        }
+        return sendOnce(accountId, new Call("POST", url, "application/octet-stream", body, headers,
+                Duration.ofMinutes(30)));
+    }
+
+    /** One HTTP request. {@code contentType} null = none. */
+    private record Call(String method, String url, String contentType, HttpRequest.BodyPublisher body,
+                        Map<String, String> headers, Duration timeout) {
+    }
+
     private JsonNode send(Long accountId, String method, String url, String formBody) {
+        Call call = formBody == null
+                ? new Call("GET", url, null, HttpRequest.BodyPublishers.noBody(), Map.of(), props.requestTimeout())
+                : new Call("POST", url, "application/x-www-form-urlencoded",
+                        HttpRequest.BodyPublishers.ofString(formBody), Map.of(), props.requestTimeout());
         int attempts = Math.max(1, props.maxAttempts());
         Duration backoff = props.initialBackoff();
         for (int attempt = 1; ; attempt++) {
             try {
-                return sendOnce(accountId, method, url, formBody);
+                return sendOnce(accountId, call);
             } catch (GraphApiException e) {
                 if (e.kind() != Kind.TRANSIENT || attempt >= attempts) {
                     throw e;
@@ -103,23 +154,23 @@ public class GraphApiClient {
         }
     }
 
-    private JsonNode sendOnce(Long accountId, String method, String url, String formBody) {
-        String masked = SecretMasker.mask(url);
+    private JsonNode sendOnce(Long accountId, Call call) {
+        String method = call.method();
+        String masked = SecretMasker.mask(call.url());
         guard.acquire(accountId);
         long started = System.nanoTime();
         Integer status = null;
         ApiUsage usage = null;
         String errorCode = null;
         try {
-            HttpRequest.Builder req = HttpRequest.newBuilder(URI.create(url))
-                    .timeout(props.requestTimeout())
-                    .header("Accept", "application/json");
-            if (formBody != null) {
-                req.header("Content-Type", "application/x-www-form-urlencoded")
-                        .POST(HttpRequest.BodyPublishers.ofString(formBody));
-            } else {
-                req.GET();
+            HttpRequest.Builder req = HttpRequest.newBuilder(URI.create(call.url()))
+                    .timeout(call.timeout())
+                    .header("Accept", "application/json")
+                    .method(method, call.body());
+            if (call.contentType() != null) {
+                req.header("Content-Type", call.contentType());
             }
+            call.headers().forEach(req::header);
             HttpResponse<String> resp = http.send(req.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             status = resp.statusCode();
             usage = ApiUsage.parse(json,

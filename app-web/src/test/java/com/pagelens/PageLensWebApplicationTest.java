@@ -251,6 +251,24 @@ class PageLensWebApplicationTest {
     }
 
     @Test
+    void writeActionsAreForbiddenByDefault() {
+        assertThat(mvc.get().uri("/api/write-status").with(OWNER)).bodyJson()
+                .extractingPath("$.writeActionsEnabled").isEqualTo(false);
+        assertThat(mvc.post().uri("/api/comments/1/reply").with(OWNER).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"message\":\"hi\"}")).hasStatus(403)
+                .bodyJson().extractingPath("$.detail").asString().contains("PAGELENS_WRITE_ACTIONS_ENABLED");
+        assertThat(mvc.post().uri("/api/publish").with(OWNER).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"accountId\":1,\"kind\":\"IMAGE\",\"items\":[{\"type\":\"IMAGE\",\"url\":\"https://example.com/a.jpg\"}]}"))
+                .hasStatus(403);
+        // A dry run is allowed and explains why it would fail.
+        assertThat(mvc.post().uri("/api/comments/1/reply").with(OWNER).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"message\":\"hi\",\"dryRun\":true}")).hasStatus(422);
+        // CSRF still applies to writes.
+        assertThat(mvc.post().uri("/api/comments/1/reply").with(OWNER)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"message\":\"hi\"}")).hasStatus(403);
+    }
+
+    @Test
     void disconnectDeletesAccount() {
         stubInstagramAccount();
         long id = connections.connectWithToken(LoginType.INSTAGRAM_LOGIN, "TEST-TOKEN-123").getFirst().id();

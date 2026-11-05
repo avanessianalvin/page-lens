@@ -7,6 +7,7 @@ import Message from 'primevue/message'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { api, call, type Schemas } from '@/api/client'
+import CommentThreads from '@/components/CommentThreads.vue'
 import SnapshotChart from '@/components/SnapshotChart.vue'
 import { formatDateTime, formatDuration, formatNumber } from '@/format'
 
@@ -42,10 +43,14 @@ const extra = computed<Record<string, unknown>>(() => {
   }
 })
 
+async function loadComments() {
+  comments.value = await call(api.GET('/api/posts/{id}/comments', { params: { path: { id: Number(props.id) } } }))
+}
+
 onMounted(async () => {
   try {
     detail.value = await call(api.GET('/api/posts/{id}', { params: { path: { id: Number(props.id) } } }))
-    comments.value = await call(api.GET('/api/posts/{id}/comments', { params: { path: { id: Number(props.id) } } }))
+    await loadComments()
   } catch (e) {
     error.value = String(e)
   }
@@ -71,6 +76,10 @@ onMounted(async () => {
           </div>
           <p class="pl-text" dir="auto">{{ post.caption || '(no caption)' }}</p>
           <span class="pl-muted">Insights updated {{ formatDateTime(post.lastInsightsAt) }}</span>
+          <p class="pl-muted pl-gap">
+            To edit the caption or delete this post, use the Instagram app. Instagram's API doesn't support caption
+            edits, and post deletion isn't enabled in PageLens.
+          </p>
         </div>
       </section>
 
@@ -108,25 +117,7 @@ onMounted(async () => {
 
       <section class="pl-card">
         <h2>Comments <span class="pl-muted">({{ comments.length }} threads)</span></h2>
-        <p v-if="comments.length === 0" class="pl-muted">No comments synced. Comments are pulled for posts from the last 14 days.</p>
-        <ul class="pl-comments">
-          <li v-for="c in comments" :key="c.id">
-            <div class="pl-comment">
-              <strong>@{{ c.username ?? 'unknown' }}</strong>
-              <span class="pl-muted">{{ formatDateTime(c.postedAt) }} · {{ formatNumber(c.likeCount) }} likes</span>
-              <Tag v-if="c.hidden" value="hidden" severity="warn" />
-              <div class="pl-text" dir="auto">{{ c.text }}</div>
-            </div>
-            <ul v-if="c.replies?.length" class="pl-replies">
-              <li v-for="r in c.replies" :key="r.id" class="pl-comment">
-                <strong>@{{ r.username ?? 'unknown' }}</strong>
-                <span class="pl-muted">{{ formatDateTime(r.postedAt) }}</span>
-                <div class="pl-text" dir="auto">{{ r.text }}</div>
-              </li>
-            </ul>
-          </li>
-        </ul>
-        <p class="pl-muted">Replying to and hiding comments arrives in Phase 3.</p>
+        <CommentThreads :comments="comments" @changed="loadComments" />
       </section>
     </template>
   </main>
@@ -149,6 +140,9 @@ h2 {
   height: 160px;
   object-fit: cover;
   border-radius: 8px;
+}
+.pl-gap {
+  font-size: 0.8rem;
 }
 .pl-head-main {
   flex: 1;

@@ -18,7 +18,7 @@ public record MetaProperties(String apiVersion, String appId, String appSecret, 
                              String instagramAppSecret, String redirectUri, Endpoints endpoints) {
 
     public record Endpoints(String graphInstagram, String graphFacebook, String instagramApi,
-                            String instagramAuthorize, String facebookDialog) {
+                            String instagramAuthorize, String facebookDialog, String rupload) {
     }
 
     public boolean instagramLoginConfigured() {

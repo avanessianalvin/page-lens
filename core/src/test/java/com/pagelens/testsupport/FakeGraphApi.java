@@ -24,7 +24,9 @@ import com.sun.net.httpserver.HttpServer;
  */
 public final class FakeGraphApi implements AutoCloseable {
 
-    public record Request(String method, String path, Map<String, String> query, String body) {
+    /** {@code headers} keys are lower case; {@code bodyBytes} is the raw request body length. */
+    public record Request(String method, String path, Map<String, String> query, String body,
+                          Map<String, String> headers, int bodyBytes) {
     }
 
     public record Response(int status, String body, Map<String, String> headers) {
@@ -104,19 +106,33 @@ public final class FakeGraphApi implements AutoCloseable {
     }
 
     private void handle(HttpExchange ex) throws IOException {
-        String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+        byte[] raw = ex.getRequestBody().readAllBytes();
+        Map<String, String> headers = new LinkedHashMap<>();
+        ex.getRequestHeaders().forEach((k, v) -> headers.put(k.toLowerCase(java.util.Locale.ROOT), String.join(",", v)));
         Request req = new Request(ex.getRequestMethod(), ex.getRequestURI().getPath(),
-                parse(ex.getRequestURI().getRawQuery()), body);
+                parse(ex.getRequestURI().getRawQuery()), new String(raw, StandardCharsets.UTF_8), headers, raw.length);
         requests.add(req);
         Function<Request, Response> route = routes.get(req.method() + " " + req.path());
         Response resp = route != null ? route.apply(req)
                 : Response.error(400, 100, "Unsupported " + req.method() + " request " + req.path());
         byte[] bytes = resp.body().getBytes(StandardCharsets.UTF_8);
-        ex.getResponseHeaders().add("Content-Type", "application/json");
+        if (resp.headers().keySet().stream().noneMatch(k -> k.equalsIgnoreCase("Content-Type"))) {
+            ex.getResponseHeaders().add("Content-Type", "application/json");
+        }
         resp.headers().forEach((k, v) -> ex.getResponseHeaders().add(k, v));
-        ex.sendResponseHeaders(resp.status(), bytes.length);
-        ex.getResponseBody().write(bytes);
+        if ("HEAD".equals(req.method())) {
+            ex.sendResponseHeaders(resp.status(), -1); // no body for HEAD
+        } else {
+            ex.sendResponseHeaders(resp.status(), bytes.length);
+            ex.getResponseBody().write(bytes);
+        }
         ex.close();
+    }
+
+    /** Answers HEAD {@code path} like a public media file with this content type and length. */
+    public FakeGraphApi media(String path, String contentType, long length) {
+        return on("HEAD", path, r -> new Response(200, "",
+                Map.of("Content-Type", contentType, "Content-Length", String.valueOf(length))));
     }
 
     public static Map<String, String> parse(String rawQuery) {

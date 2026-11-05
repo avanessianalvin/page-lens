@@ -2,6 +2,51 @@
 
 ## [Unreleased]
 
+### Phase 3: Write actions
+
+- **Meta research** recorded in `docs/API_NOTES.md` (comment moderation, content publishing, resumable upload, limits).
+- **Master switch** `PAGELENS_WRITE_ACTIONS_ENABLED`, **off by default**.
+  - With it off, real writes are refused (REST 403) and audited as `disabled`; dry runs still validate.
+  - Claude's write tools also need `PAGELENS_MCP_WRITE_TOOLS=true`.
+- **Comments:** reply, hide/unhide, delete (`CommentActions`). Replies to a reply go to the thread's top-level comment, and replies to hidden comments are refused. New replies are stored locally right away. Comment text never reaches logs or the audit trail.
+- **Publishing** (`PublishService`): photo, Reel, story and carousel (2–20) through Meta's container workflow.
+  - Validation follows Meta's rules: caption 2200 characters / 30 hashtags / 20 mentions; JPEG ≤ 8 MB; video size limits; alt text and Reel options; the publish permission; the 24-hour quota.
+  - Media URLs are pre-checked with a HEAD request. Private and localhost addresses are refused.
+  - Local video upload uses Meta's resumable upload, for Facebook Login accounts only, and resumes once from the transferred offset.
+  - Never double-publishes:
+    - one job per idempotency key, claimed with atomic status transitions
+    - container ids stored as soon as Meta returns them
+    - container status checked before and after `media_publish`
+    - write calls never auto-retried
+    - interrupted jobs resolved by checking Instagram, never by publishing again
+  - Retry reuses the container. A new post appears in the local database immediately.
+- **Migration V3:** `publish_job` table.
+- **Scopes:** the OAuth request now includes the publish scope. Existing accounts must reconnect to publish.
+- **REST:**
+  - `/api/write-status`
+  - `/api/comments/{id}/reply`, `/api/comments/{id}/hide`, `DELETE /api/comments/{id}`
+  - `/api/publish` (`dryRun`), `/api/publish/{id}/status`, `/api/publish/{id}/retry`, `/api/publish`, `/api/publish/quota`, `/api/publish/uploads`
+
+  All writes accept `dryRun` and return 422 with readable `errors` when rejected.
+- **MCP:** `reply_to_comment`, `hide_comment`, `publish_post` (public URLs only) and `get_publish_status`.
+  - They default to `dry_run=true` and are annotated as writes.
+  - Every call is audited with actor `mcp`.
+  - `get_post_comments` now returns `commentId`.
+- **Dashboard:**
+  - New Publish page with caption counters, a dry-run check, a confirmation dialog, video upload, a job list with Retry and the quota.
+  - Comment Reply / Hide / Delete on the post detail page, each behind a confirmation dialog.
+  - The UI explains the gaps: no scheduling, no caption edits, no post deletion.
+- **Tests:** 87, none skipped. They cover comment actions, the dry run, the disabled default, the full publish flow, idempotency, a lost publish response, carousels, resumable upload, validation rules, the REST write API and the MCP write tools.
+
+### Phase 3 decisions
+
+- **Media:** public URLs for everything, plus local video upload for Facebook Login accounts. Local images would need a public host, which breaks the local-only rule.
+- **Publish now only**, with no scheduling.
+- **Post deletion** is supported by Meta for Facebook Login but **not implemented** (owner decision). It's shown as a limitation.
+- **MCP writes:** the plan's set (reply, hide, publish), plus a read-only `get_publish_status`. Comment deletion is dashboard-only.
+- The write switch is an environment variable that needs a restart; there's no runtime toggle in the UI.
+- Optional write flags in REST bodies are `Boolean`, because Jackson 3 (Boot 4) rejects a missing primitive.
+
 ### Phase 2: MCP and analysis
 
 - **Analysis helpers** (`core/analysis`, local data only, no Instagram calls):

@@ -15,3 +15,6 @@ pagelens:
   mcp:
     stdio-enabled: true
     sync-tool-enabled: ${PAGELENS_MCP_SYNC_TOOL:true}
+    # Claude's write tools (reply_to_comment, hide_comment, publish_post) need BOTH this and
+    # PAGELENS_WRITE_ACTIONS_ENABLED=true. Off by default.
+    write-tools-enabled: ${PAGELENS_MCP_WRITE_TOOLS:false}

@@ -40,8 +40,6 @@ Sources: [Instagram Platform overview](https://developers.facebook.com/docs/inst
 - User (account) metrics are stored by Meta for up to **90 days**. Snapshot them daily or the history is lost.
 - Some metrics are unavailable for accounts with **fewer than 100 followers**.
 
-## Still to verify (before Phase 1 code)
-
 ## Verified 2026-11-05 (Phase 1)
 
 Sources: Meta's machine-readable docs index (`developers.facebook.com/documentation/instagram-platform/llms.txt`) and the reference pages it links to: IG Media Insights, IG User Insights, IG User media/stories, IG Media comments, IG Media, IG User, Instagram Login get-started, Unified Login authentication, Facebook Login get-started, Facebook Login manual flow, Graph API rate limiting.
@@ -115,7 +113,60 @@ Sources: Meta's machine-readable docs index (`developers.facebook.com/documentat
 - Header `X-Business-Use-Case-Usage`: `{"<business-id>":[{"type":"instagram","call_count":n,"total_cputime":n,"total_time":n,"estimated_time_to_regain_access":minutes}]}`. Header `X-App-Usage`: `{"call_count","total_time","total_cputime"}`. Values are percentages.
 - Throttle error codes: `80002` (Instagram BUC), `4`, `17`, `32`, `613`. Failed calls still count, so stop until the time in `estimated_time_to_regain_access`.
 
+## Verified 2026-11-05 (Phase 3: write actions)
+
+Sources: Comment Moderation guide, IG Comment, IG Comment replies, IG Media (Updating/Deleting), Content Publishing guide, IG User media (POST), IG User media_publish, IG Container, content_publishing_limit, Resumable Uploads (all `.md` pages under `developers.facebook.com/documentation/instagram-platform/`). The Instagram Login "Upload Media" page returned *Page not found*.
+
+### Comments
+
+- Permissions: Instagram Login `instagram_business_basic` + `instagram_business_manage_comments`; Facebook Login `instagram_basic` + `instagram_manage_comments` + `pages_read_engagement`. These are already requested in Phase 1.
+- **Reply** `POST /<IG_COMMENT_ID>/replies` with `message` → `{"id": "<new comment id>"}`.
+  - Only **top-level** comments: "replies to a reply will be added to the top-level comment". PageLens targets the top-level comment explicitly.
+  - No replies to **hidden** comments, and none on live video.
+  - Meta states no length limit. PageLens caps replies at 2200 characters, the caption limit.
+- **Hide/unhide** `POST /<IG_COMMENT_ID>?hide=true|false` → `{"success": true}`. The token must belong to the media owner. The owner's own comments always stay visible, even when hidden.
+- **Delete** `DELETE /<IG_COMMENT_ID>` → `{"success": true}`. The page contradicts itself about who can delete; the Limitations section says the **media owner** can. Treat that as unconfirmed until it's tried on a live account.
+- `comment_enabled` toggling (`POST /<IG_MEDIA_ID>?comment_enabled=`) exists but is not in the plan. Not implemented.
+
+### Posts: what is and isn't possible
+
+- **Caption editing** is not documented (the IG Media "Updating" section covers only `comment_enabled`), so it's shown in the UI as unsupported.
+- **Deleting a post** *is* documented, but only for Facebook Login (`instagram_manage_contents`; posts, Reels, stories and whole carousels). By owner decision it is **not** implemented; the UI shows it as a limitation.
+
+### Publishing
+
+- Permissions: Instagram Login `instagram_business_content_publish`; Facebook Login `instagram_content_publish` (+ `pages_read_engagement`, and the user needs MANAGE or CREATE_CONTENT on the Page). **Accounts connected before Phase 3 must reconnect** to grant them.
+- **Flow:**
+  1. `POST /<IG_ID>/media` → `{"id": container}`.
+  2. Poll `GET /<container>?fields=status_code,status` until `FINISHED`.
+  3. `POST /<IG_ID>/media_publish?creation_id=<container>` → `{"id": media}`.
+- `status_code` values: `IN_PROGRESS`, `FINISHED`, `PUBLISHED`, `ERROR` (`status` then holds a subcode), `EXPIRED` (not published within **24 h**). Meta recommends polling once a minute for up to 5 minutes.
+- **Container parameters:**
+  - Image: `image_url` (no `media_type`).
+  - Reel: `media_type=REELS`, `video_url`; optional `share_to_feed`, `cover_url`, `thumb_offset` (ms).
+  - Story: `media_type=STORIES` + `image_url` or `video_url`.
+  - Carousel: one child per item with `is_carousel_item=true` (`image_url`, or `media_type=VIDEO` + `video_url`), then the parent with `media_type=CAROUSEL&children=<ids>`. **2–20 items**; Reels can't be children, and caption, location and tags go on the parent only.
+  - `alt_text`: images only, ≤ 1000 characters.
+  - Caption: **≤ 2200 characters, ≤ 30 hashtags, ≤ 20 @-tags**. Stories don't support collaborators or `alt_text`, and PageLens sends no caption for stories.
+- **Media must be reachable at a public URL** ("We cURL media"), with US-ASCII URLs.
+  - Images: JPEG only, ≤ 8 MB, aspect 4:5 to 1.91:1, sRGB.
+  - Reels: MP4/MOV (H.264/HEVC, AAC), 3 s – 15 min, ≤ 300 MB.
+  - Story video: 3–60 s, ≤ 100 MB.
+- **Resumable upload** (local video files), **Facebook Login only**:
+  1. `POST /<IG_ID>/media` with `upload_type=resumable&media_type=REELS|STORIES|VIDEO` → `{"id", "uri": "https://rupload.facebook.com/ig-api-upload/v27.0/<container>"}`.
+  2. `POST <uri>` with headers `Authorization: OAuth <token>`, `offset`, `file_size` and the raw file as the body → `{"success": true}`.
+
+  To resume, check `video_status.uploading_phase.bytes_transferred` and continue from that offset. **Images can't be uploaded**; they always need a public `image_url`.
+- **Limits:**
+  - **50 published posts per rolling 24 h** (a carousel counts as one; one guide line says 100, which looks stale). Check with `GET /<IG_ID>/content_publishing_limit?fields=config,quota_usage`, which returns `quota_total` and `quota_duration`.
+  - **400 containers per rolling 24 h**.
+- Behaviour when publishing an already-published container is not documented. PageLens therefore checks the container's `status_code` before calling `media_publish`, never calls `media_publish` twice for a job, and never retries write calls automatically.
+
 ## Still to verify (needs a live account)
+
+- [ ] Who may delete a comment (media owner vs comment author); the reference contradicts itself.
+- [ ] Error returned when `media_publish` is called for a container that is already `PUBLISHED`.
+- [ ] Whether Instagram Login supports resumable (local file) upload. Its Upload Media page was missing; PageLens allows local upload only for Facebook Login.
 
 - [ ] Whether Instagram Login and Facebook Login accept `http://localhost:8080/auth/callback`. Fallback: paste a dashboard-generated token.
 - [ ] `media_product_type` and `caption` availability with Instagram Login.

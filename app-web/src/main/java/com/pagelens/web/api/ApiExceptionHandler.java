@@ -27,6 +27,16 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
+    @ExceptionHandler(com.pagelens.core.write.WriteGuard.WriteActionsDisabledException.class)
+    ProblemDetail writesDisabled(com.pagelens.core.write.WriteGuard.WriteActionsDisabledException e) {
+        return problem(HttpStatus.FORBIDDEN, e.getMessage());
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ProblemDetail tooLarge(org.springframework.web.multipart.MaxUploadSizeExceededException e) {
+        return problem(HttpStatus.CONTENT_TOO_LARGE, "The file is over Instagram's 300 MB video limit");
+    }
+
     @ExceptionHandler(SyncService.AlreadyRunningException.class)
     ProblemDetail conflict(SyncService.AlreadyRunningException e) {
         return problem(HttpStatus.CONFLICT, e.getMessage());

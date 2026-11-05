@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({PageLensProperties.class, MetaProperties.class, HttpProperties.class,
-        SyncProperties.class, MetricCatalog.class})
+        SyncProperties.class, MetricCatalog.class, PublishProperties.class})
 public class CoreConfiguration {
 
     /** UTC clock; tests replace it to control "now". */

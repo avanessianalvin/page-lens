@@ -35,8 +35,11 @@ pagelens:
   log-dir: ${PAGELENS_LOG_DIR:logs}
   # Display / analysis time zone. Empty = this machine's default zone. Data is always stored in UTC.
   time-zone: ${PAGELENS_TIME_ZONE:}
-  # Write actions (publish, reply, hide, delete) stay off until Phase 3 and then default to off.
-  write-actions-enabled: false
+  # Master switch for write actions (reply/hide/delete comments, publish). Off by default; restart after changing.
+  # Claude's MCP write tools additionally need PAGELENS_MCP_WRITE_TOOLS=true in the MCP server's environment.
+  write-actions-enabled: ${PAGELENS_WRITE_ACTIONS_ENABLED:false}
+  # Local video files staged for resumable upload (Facebook Login accounts). Deleted after publishing.
+  upload-dir: ${PAGELENS_UPLOAD_DIR:data/uploads}
   # AES-256-GCM key for stored access tokens: 32 random bytes, base64 (openssl rand -base64 32).
   encryption-key: ${PAGELENS_ENCRYPTION_KEY:}
 
@@ -56,6 +59,7 @@ pagelens:
       instagram-api: https://api.instagram.com
       instagram-authorize: https://www.instagram.com/oauth/authorize
       facebook-dialog: https://www.facebook.com
+      rupload: https://rupload.facebook.com
 
   http:
     connect-timeout: 10s
@@ -65,6 +69,13 @@ pagelens:
     # Usage percentage (from Meta's usage headers) at which calls slow down / stop until access is regained.
     slow-down-at-percent: 75
     stop-at-percent: 95
+
+  publish:
+    # Container status polling: starts at poll-initial, doubles up to poll-max (Meta: about once a minute).
+    poll-initial: 2s
+    poll-max: 60s
+    image-timeout: 5m
+    video-timeout: 15m
 
   sync:
     enabled: true

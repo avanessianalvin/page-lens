@@ -5,6 +5,12 @@ spring:
   profiles:
     default: dev
 
+  servlet:
+    multipart:
+      # Local video uploads for publishing (Instagram's Reel limit is 300 MB).
+      max-file-size: 300MB
+      max-request-size: 301MB
+
 server:
   # Dashboard is local-only by owner decision. Do not change without revisiting security (plan section 5).
   address: 127.0.0.1

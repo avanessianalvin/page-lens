@@ -303,6 +303,7 @@ public class PageLensTools {
 
     private static Map<String, Object> comment(Comment c, McpViews v) {
         Map<String, Object> m = new LinkedHashMap<>();
+        m.put("commentId", c.id()); // PageLens id, used by reply_to_comment / hide_comment
         m.put("username", c.username());
         m.put("text", c.text());
         m.put("likes", c.likeCount());

@@ -274,7 +274,7 @@ public class InstagramApi {
         return out;
     }
 
-    static IgMedia toMedia(JsonNode n) {
+    public static IgMedia toMedia(JsonNode n) {
         return new IgMedia(text(n, "id"), text(n, "caption"), text(n, "media_type"), text(n, "media_product_type"),
                 text(n, "permalink"), text(n, "thumbnail_url"), text(n, "media_url"), timestamp(n, "timestamp"),
                 num(n, "like_count"), num(n, "comments_count"), text(n, "shortcode"), n);

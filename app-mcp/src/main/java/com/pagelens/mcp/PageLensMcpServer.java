@@ -36,10 +36,12 @@ public class PageLensMcpServer {
 
     private final PageLensTools tools;
     private final PageLensResources resources;
+    private final PageLensWriteTools writeTools;
 
-    public PageLensMcpServer(PageLensTools tools, PageLensResources resources) {
+    public PageLensMcpServer(PageLensTools tools, PageLensResources resources, PageLensWriteTools writeTools) {
         this.tools = tools;
         this.resources = resources;
+        this.writeTools = writeTools;
     }
 
     public record Running(McpSyncServer server, CountDownLatch closed, CountDownLatch release, PageLensTools tools) {
@@ -65,11 +67,17 @@ public class PageLensMcpServer {
                 .instructions(INSTRUCTIONS)
                 .requestTimeout(Duration.ofMinutes(2))
                 .capabilities(ServerCapabilities.builder().tools(false).resources(false, false).prompts(false).build())
-                .tools(tools.specifications())
+                .tools(allTools())
                 .resources(resources.resources())
                 .prompts(resources.prompts())
                 .build();
         return new Running(server, closed, release, tools);
+    }
+
+    private java.util.List<io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification> allTools() {
+        var all = new java.util.ArrayList<>(tools.specifications());
+        all.addAll(writeTools.specifications()); // empty unless both write switches are on
+        return all;
     }
 
     static String version() {
