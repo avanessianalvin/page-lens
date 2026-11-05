@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MCP process logging. stdout is reserved for the MCP protocol, so:
+    * console output goes to System.err only
+    * logback's own status printing is silenced (NopStatusListener). Its fallback printer writes to
+      stdout. Real configuration errors still fail startup via Spring Boot's exception (stderr).
+-->
+<configuration>
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <springProperty name="LOG_DIR" source="pagelens.log-dir" defaultValue="logs"/>
+    <include resource="logback-pagelens-files.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="STDERR"/>
+        <appender-ref ref="APP_FILE"/>
+    </root>
+</configuration>

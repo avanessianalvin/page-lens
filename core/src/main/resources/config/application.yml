@@ -1,0 +1,92 @@
+# Shared configuration for every PageLens process (app-web, app-mcp).
+# Spring Boot loads classpath:/config/application.yml automatically, with higher precedence than each app's
+# own application.yml, so no spring.config.import is needed. Keep app-specific keys out of this file.
+# Secrets come from env vars or the .env file, never from here.
+
+spring:
+  config:
+    # Later entries win; real environment variables beat all of these.
+    # The MCP process may be launched from any directory: set PAGELENS_ENV_FILE to an absolute path there.
+    import:
+      - classpath:instagram-metrics.yml
+      - optional:file:${PAGELENS_ENV_FILE:.env}[.properties]
+      - optional:file:./application-local.yml
+  datasource:
+    # PageLens lives in its own schema inside the existing "postgres" database (scripts/db/create-schema.sql).
+    url: ${PAGELENS_DB_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${PAGELENS_DB_USER:pagelens}
+    password: ${PAGELENS_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 5
+      # Every pooled connection uses the PageLens schema, so SQL stays unqualified.
+      schema: ${PAGELENS_DB_SCHEMA:pagelens}
+  flyway:
+    locations: classpath:db/migration
+    # Migrations and flyway_schema_history live in the PageLens schema, never in public.
+    schemas: ${PAGELENS_DB_SCHEMA:pagelens}
+    default-schema: ${PAGELENS_DB_SCHEMA:pagelens}
+  threads:
+    virtual:
+      enabled: true
+
+pagelens:
+  # Where app.log, api-calls.log and audit.log are written. Use an absolute path for the MCP process,
+  # because Claude may launch it from any working directory.
+  log-dir: ${PAGELENS_LOG_DIR:logs}
+  # Display / analysis time zone. Empty = this machine's default zone. Data is always stored in UTC.
+  time-zone: ${PAGELENS_TIME_ZONE:}
+  # Write actions (publish, reply, hide, delete) stay off until Phase 3 and then default to off.
+  write-actions-enabled: false
+  # AES-256-GCM key for stored access tokens: 32 random bytes, base64 (openssl rand -base64 32).
+  encryption-key: ${PAGELENS_ENCRYPTION_KEY:}
+
+  meta:
+    api-version: v27.0
+    # Facebook Login (graph.facebook.com)
+    app-id: ${META_APP_ID:}
+    app-secret: ${META_APP_SECRET:}
+    # Instagram Login (graph.instagram.com) uses the separate "Instagram app" id/secret.
+    instagram-app-id: ${META_INSTAGRAM_APP_ID:}
+    instagram-app-secret: ${META_INSTAGRAM_APP_SECRET:}
+    redirect-uri: ${PAGELENS_OAUTH_REDIRECT_URI:http://localhost:8080/auth/callback}
+    # Overridable for tests (fake Graph API server). Do not change in normal use.
+    endpoints:
+      graph-instagram: https://graph.instagram.com
+      graph-facebook: https://graph.facebook.com
+      instagram-api: https://api.instagram.com
+      instagram-authorize: https://www.instagram.com/oauth/authorize
+      facebook-dialog: https://www.facebook.com
+
+  http:
+    connect-timeout: 10s
+    request-timeout: 30s
+    max-attempts: 3
+    initial-backoff: 1s
+    # Usage percentage (from Meta's usage headers) at which calls slow down / stop until access is regained.
+    slow-down-at-percent: 75
+    stop-at-percent: 95
+
+  sync:
+    enabled: true
+    # Spring cron (sec min hour day month weekday), in this machine's zone.
+    cron: ${PAGELENS_SYNC_CRON:0 0 6,18 * * *}
+    stories-cron: ${PAGELENS_STORIES_CRON:0 0 */3 * * *}
+    token-check-cron: "0 30 3 * * *"
+    # Posts younger than this get fresh insights on every run...
+    recent-days: 7
+    # ...older posts at most this often.
+    older-refresh-days: 7
+    # Cap on older posts refreshed per run, to protect the rate budget.
+    older-refresh-batch: 25
+    # Comments are pulled for posts younger than this.
+    comment-days: 14
+    # Account insights lag up to 48 h, so re-fetch this many recent days on every run.
+    daily-lookback-days: 3
+    # A new account's first sync fetches this many days of account insights (Meta keeps ~90).
+    backfill-days: 90
+    # Stop paging media after this many items per run (backfill ignores this; Meta's own cap is 10K).
+    media-page-limit: 100
+    # Warn when a token expires within this many days.
+    token-warning-days: 7
+    # Refresh Instagram Login tokens once they are older than this (must be >= 1 day per Meta).
+    token-refresh-after-days: 7

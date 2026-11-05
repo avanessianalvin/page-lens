@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: pagelens-web
+  # Shared settings (database, Flyway, .env loading, Meta, sync) come from core's classpath:/config/application.yml.
+  profiles:
+    default: dev
+
+server:
+  # Dashboard is local-only by owner decision. Do not change without revisiting security (plan section 5).
+  address: 127.0.0.1
+  port: ${PAGELENS_WEB_PORT:8080}
+  servlet:
+    session:
+      timeout: 12h
+      cookie:
+        name: PAGELENS_SESSION
+        http-only: true
+        same-site: lax
+
+pagelens:
+  web:
+    username: ${PAGELENS_WEB_USERNAME:admin}
+    # bcrypt hash: java -jar app-web/target/pagelens-web.jar --hash-password
+    password-hash: ${PAGELENS_WEB_PASSWORD_HASH:}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  packages-to-scan: com.pagelens.web.api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # loggers = change log levels at runtime (POST /actuator/loggers/{name})
+        include: health,info,loggers
+  endpoint:
+    health:
+      # Details only for the logged-in owner; anonymous callers just see UP/DOWN.
+      show-details: when-authorized

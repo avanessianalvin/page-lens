@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: pagelens-mcp
+  main:
+    # stdout is the MCP protocol channel: never print a banner or bind a web server.
+    banner-mode: off
+    web-application-type: none
+  # Shared settings (database, Flyway, .env loading) come from core's classpath:/config/application.yml.
+  # Claude launches this process from an arbitrary working directory, so pass settings as env vars in the
+  # MCP client config, or set PAGELENS_ENV_FILE to an absolute path.
+  profiles:
+    default: dev

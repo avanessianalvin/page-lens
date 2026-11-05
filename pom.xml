@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.2</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.pagelens</groupId>
+    <artifactId>pagelens-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>PageLens</name>
+    <description>Local-first Instagram insights: sync engine, REST API, MCP server</description>
+
+    <modules>
+        <module>core</module>
+        <module>app-web</module>
+        <module>app-mcp</module>
+    </modules>
+
+    <properties>
+        <java.version>21</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <springdoc.version>3.2.0</springdoc.version>
+
+        <!--
+          Security overrides of Spring Boot 4.1.2-managed versions (2026-11-05, flagged by Mend in the IDE).
+          Remove each one once a Spring Boot release manages an equal or newer version.
+        -->
+        <!-- runtime, via Flyway 12.4 -->
+        <jackson-bom.version>3.1.8</jackson-bom.version>
+        <!-- runtime; 1.6.x carries MDC fixes (CVE-2026-19880, CVE-2026-104721) missing from 1.5.38 -->
+        <logback.version>1.6.6</logback.version>
+        <!-- test only, via spring-boot-starter-test -->
+        <json-smart.version>2.6.1</json-smart.version>
+        <asm.version>9.11.1</asm.version>
+        <org-json.version>20260814</org-json.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- test only: json-smart -> accessors-smart -> asm -->
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm</artifactId>
+                <version>${asm.version}</version>
+            </dependency>
+            <!--
+              test only: JSONassert ships android-json (CVE-2026-110974, never patched).
+              Swap it for the maintained org.json implementation of the same API.
+            -->
+            <dependency>
+                <groupId>org.skyscreamer</groupId>
+                <artifactId>jsonassert</artifactId>
+                <version>${jsonassert.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.vaadin.external.google</groupId>
+                        <artifactId>android-json</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>org.json</groupId>
+                <artifactId>json</artifactId>
+                <version>${org-json.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.pagelens</groupId>
+                <artifactId>pagelens-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- Replaces the excluded android-json for JSONassert (see dependencyManagement). -->
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-build-environment</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,)</version>
+                                    <message>PageLens needs JDK 21+. Point JAVA_HOME at it, e.g. C:\Program Files\Java\jdk-21 (see docs/SETUP.md).</message>
+                                </requireJavaVersion>
+                                <requireMavenVersion>
+                                    <version>[3.9,)</version>
+                                </requireMavenVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

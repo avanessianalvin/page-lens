@@ -1,0 +1,88 @@
+# PageLens Setup
+
+One-time setup for a local PageLens install. For day-to-day operation see [RUNBOOK.md](RUNBOOK.md).
+
+## 1. Prerequisites
+
+| Tool | Version | Notes |
+|---|---|---|
+| JDK | 21+ | Build and run need JDK 21. If `JAVA_HOME` points to an older JDK, set it for the shell: PowerShell `$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"`, Git Bash `export JAVA_HOME="/c/Program Files/Java/jdk-21"`. The build fails fast with a clear message on older JDKs. |
+| Maven | none needed | Use the bundled wrapper: `./mvnw` (or `mvnw.cmd`). |
+| PostgreSQL | 17 (any 14+) | Must be running locally on port 5432 (or set `PAGELENS_DB_URL`). |
+| Docker | any recent | Only for integration tests (Testcontainers). Without Docker those tests are skipped, not failed. |
+| Node.js | 22+ | Frontend, from Phase 1. |
+
+## 2. Database
+
+PageLens doesn't need its own database. It uses a dedicated **`pagelens` schema inside the existing `postgres` database**, owned by a `pagelens` login role. All PageLens tables, including `flyway_schema_history`, live in that schema, and nothing is written to `public`.
+
+With the PostgreSQL service running, run this as the `postgres` superuser (it's safe to re-run):
+
+```
+psql -h localhost -U postgres -d postgres -f scripts/db/create-schema.sql
+```
+
+The script sets the role's password. `.env` must contain the same value in `PAGELENS_DB_PASSWORD`. To change it later, run `ALTER ROLE pagelens PASSWORD '...'`.
+Flyway creates and upgrades all tables when either app starts. Never create tables by hand.
+
+## 3. Configuration
+
+```
+cp .env.example .env
+```
+
+Fill in `.env` (it is git-ignored). Real environment variables override `.env`.
+Optional per-machine Spring overrides go in `application-local.yml` at the repo root (also git-ignored, read by app-web).
+
+| Variable | Purpose |
+|---|---|
+| `PAGELENS_DB_URL`, `PAGELENS_DB_USER`, `PAGELENS_DB_PASSWORD` | Database connection (default URL: the `postgres` database on localhost:5432) |
+| `PAGELENS_DB_SCHEMA` | Schema holding all PageLens tables (default `pagelens`) |
+| `PAGELENS_LOG_DIR` | Log directory. Use an absolute path so the MCP process (started by Claude from any directory) writes to the same place. |
+| `PAGELENS_TIME_ZONE` | IANA zone for display and best-time analysis. Empty means this machine's zone. Storage is always UTC. |
+| `PAGELENS_ENV_FILE` | Path to the `.env` file. Default is `.env` in the working directory. Set it to an absolute path for the MCP process. |
+| `PAGELENS_WEB_PORT` | Dashboard port (default 8080). The dashboard binds to 127.0.0.1 only. |
+| `META_*`, `PAGELENS_ENCRYPTION_KEY` | Meta app credentials and the token encryption key, used from Phase 1 (see below). |
+
+## 4. Meta developer app
+
+PageLens talks to the official Instagram Graph API. Meta offers two setups, and PageLens supports both, chosen per account:
+
+| | Instagram API with **Instagram Login** | Instagram API with **Facebook Login** |
+|---|---|---|
+| Facebook Page needed | No | Yes. The IG account must be linked to a Page you can administer. |
+| User logs in with | Instagram credentials | Facebook credentials |
+| API host | `graph.instagram.com` | `graph.facebook.com` |
+| Read permissions | `instagram_business_basic`, `instagram_business_manage_insights` | `instagram_basic`, `instagram_manage_insights`, `pages_show_list`, `pages_read_engagement` |
+| Comment permission | `instagram_business_manage_comments` | `instagram_manage_comments` |
+| Publish permission (Phase 3) | `instagram_business_content_publish` | `instagram_content_publish` |
+
+Names were checked against Meta's docs on 2026-11-05 (see [API_NOTES.md](API_NOTES.md)). Recheck them before Phase 1, because Meta renames permissions often. Meta's overview also mentions a newer "Unified Login" option for new integrations; Phase 1 will evaluate it.
+
+### Steps
+
+1. Go to <https://developers.facebook.com/apps>, click **Create app**, and name it **PageLens** (or **PageLens Dev**). Choose the business use case that offers the Instagram product.
+2. Add the **Instagram** product to the app.
+3. Make sure each Instagram account is a **Business** or **Creator** (professional) account: Instagram app → Settings → Account type and tools.
+4. For accounts that will use Facebook Login, link the account to a Facebook Page: Page settings → Linked accounts → Instagram.
+5. Under **App roles**, add yourself as an admin. Under the Instagram product, add each Instagram account as an **Instagram tester** and accept the invite in the Instagram app (Settings → Apps and websites → Tester invites).
+6. Stay on **Standard Access**. Meta's docs say Standard Access is enough when the app only serves accounts you own or manage and that have a role on the app. App Review and Business Verification are only needed for Advanced Access, which we don't need.
+7. Add the permissions from the table above. Leave out the publish permissions until Phase 3.
+8. Add the OAuth redirect URI `http://localhost:8080/auth/callback`. *Not yet verified:* Meta's Instagram Login docs only show HTTPS examples. If plain `http://localhost` is rejected, Phase 1 will add a local HTTPS option. See API_NOTES.md.
+9. Copy the credentials into `.env`. The app ID and secret go in `META_APP_ID` / `META_APP_SECRET`. For Instagram Login, the separate **Instagram app ID / secret** from the Instagram product's settings go in `META_INSTAGRAM_APP_ID` / `META_INSTAGRAM_APP_SECRET`.
+10. Generate the token encryption key and put it in `PAGELENS_ENCRYPTION_KEY`:
+    ```
+    openssl rand -base64 32
+    ```
+    If you lose this key, stored tokens can't be decrypted and every account has to be reconnected. Back it up separately from the database.
+
+Connecting accounts (the OAuth flow) arrives in Phase 1.
+
+## 5. Verify the install
+
+```
+./mvnw verify                                   # build + tests (integration tests need Docker)
+java -jar app-web/target/pagelens-web.jar       # then open http://127.0.0.1:8080/actuator/health
+```
+
+A health response with `"db":{"status":"UP"}` means the database connection and migrations work.

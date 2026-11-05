@@ -1,0 +1,23 @@
+# Secrets and local overrides (never commit)
+.env
+.env.*
+!.env.example
+application-local.yml
+*.key
+
+# Build output
+target/
+logs/
+*.log
+
+# Frontend (Vite builds straight into app-web's static resources)
+node_modules/
+frontend/dist/
+app-web/src/main/resources/static/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
