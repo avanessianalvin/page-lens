@@ -68,11 +68,13 @@ public class PageLensTools {
     private final AuditLogRepository audit;
     private final MetricCatalog catalog;
     private final McpProperties props;
+    private final com.pagelens.core.alerts.AlertService alerts;
 
     public PageLensTools(AnalysisService analysis, AccountRepository accounts, MediaRepository media,
                          InsightRepository insights, CommentRepository comments, AudienceRepository audience,
                          SyncRunRepository runs, TokenService tokens, RateLimitGuard rateLimit, SyncService sync,
-                         AuditLogRepository audit, MetricCatalog catalog, McpProperties props) {
+                         AuditLogRepository audit, MetricCatalog catalog, McpProperties props,
+                         com.pagelens.core.alerts.AlertService alerts) {
         this.analysis = analysis;
         this.accounts = accounts;
         this.media = media;
@@ -86,6 +88,7 @@ public class PageLensTools {
         this.audit = audit;
         this.catalog = catalog;
         this.props = props;
+        this.alerts = alerts;
     }
 
     McpViews views() {
@@ -180,20 +183,20 @@ public class PageLensTools {
                 new ToolArgs.Schema().account().period(AnalysisService.DEFAULT_PERIOD), this::captions));
 
         tools.add(tool("get_sync_status", "Sync status",
-                "Recent sync runs (status, items fetched, errors), last successful sync, token health and current "
+                "Recent sync runs (status, items fetched, errors), open alerts (failed syncs, expiring tokens, stale "
+                        + "data, failed backups), last successful sync, token health and current "
                         + "Instagram rate-limit usage. Use it to judge how fresh the data is.",
                 new ToolArgs.Schema().account().prop("limit", "integer", "Max runs (default 10, max 50)."),
                 this::syncStatus));
 
         if (props.syncToolEnabled()) {
-            tools.add(new SyncToolSpecification(Tool.builder()
-                    .name("sync_now").title("Sync now")
+            tools.add(new SyncToolSpecification(Tool.builder("sync_now", new ToolArgs.Schema().account()
+                            .enumProp("job", List.of("FULL", "STORIES"), "Default FULL.").build())
+                    .title("Sync now")
                     .description("Starts a background sync from Instagram for one account and returns its run id; "
                             + "poll get_sync_status for the result. Reads from Instagram only (nothing is posted "
                             + "or changed there) but spends API rate budget, so don't call it repeatedly. "
                             + "job FULL refreshes everything; STORIES only live stories.")
-                    .inputSchema(new ToolArgs.Schema().account()
-                            .enumProp("job", List.of("FULL", "STORIES"), "Default FULL.").build())
                     .annotations(new ToolAnnotations(null, false, false, false, true, null))
                     .build(), (exchange, req) -> call("sync_now", req.arguments(), this::syncNow)));
         }
@@ -424,12 +427,23 @@ public class PageLensTools {
             rateLimit.current(acc.id()).ifPresent(u -> m.put("rateLimit", usage(u, v)));
         }
         m.put("runs", runs.recent(acc == null ? null : acc.id(), limit).stream().map(r -> run(r, v)).toList());
+        m.put("alerts", (acc == null ? alerts.current() : alerts.current().stream()
+                .filter(x -> x.accountId() == null || x.accountId() == acc.id()).toList()).stream().map(x -> {
+                    Map<String, Object> al = new LinkedHashMap<>();
+                    al.put("severity", x.severity());
+                    al.put("kind", x.kind());
+                    al.put("account", x.account());
+                    al.put("message", x.message());
+                    al.put("action", x.action());
+                    return al;
+                }).toList());
         return m;
     }
 
     private Object syncNow(ToolArgs a) {
         Account acc = analysis.resolveAccount(a.str("account"));
-        String job = a.str("job") == null ? "FULL" : a.str("job").toUpperCase();
+        String requested = a.str("job");
+        String job = requested == null ? "FULL" : requested.toUpperCase(java.util.Locale.ROOT);
         if (!List.of("FULL", "STORIES").contains(job)) {
             throw new IllegalArgumentException("job must be FULL or STORIES");
         }
@@ -474,7 +488,7 @@ public class PageLensTools {
 
     private SyncToolSpecification tool(String name, String title, String description, ToolArgs.Schema schema,
                                        Function<ToolArgs, Object> handler) {
-        Tool tool = Tool.builder().name(name).title(title).description(description).inputSchema(schema.build())
+        Tool tool = Tool.builder(name, schema.build()).title(title).description(description)
                 .annotations(READ_ONLY).build();
         return new SyncToolSpecification(tool, (exchange, req) -> call(name, req.arguments(), handler));
     }

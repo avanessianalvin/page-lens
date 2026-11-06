@@ -6,11 +6,15 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { api, call, type Schemas } from '@/api/client'
 import AccountPicker from '@/components/AccountPicker.vue'
+import AlertList from '@/components/AlertList.vue'
+import { useAlertsStore } from '@/stores/alerts'
 import LineChart from '@/components/charts/LineChart.vue'
 import { useAccountsStore } from '@/stores/accounts'
 import { formatDate, formatDateTime, formatDelta, formatNumber, formatRate, pctChange, relativeDays } from '@/format'
 
 const store = useAccountsStore()
+const alerts = useAlertsStore()
+const visibleAlerts = computed(() => alerts.items.filter((a) => a.accountId == null || a.accountId === store.selectedId))
 const overview = ref<Schemas['Overview'] | null>(null)
 const growth = ref<Schemas['FollowerGrowth'] | null>(null)
 const daily = ref<Schemas['DailyMetric'][]>([])
@@ -72,6 +76,7 @@ onMounted(async () => {
     </div>
     <p v-if="store.items.length === 0" class="pl-muted">Connect an account on the <RouterLink to="/accounts">Accounts</RouterLink> page first.</p>
     <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
+    <AlertList :alerts="visibleAlerts" />
 
     <template v-if="overview">
       <Message v-if="overview.account?.status !== 'ACTIVE'" severity="error" :closable="false">

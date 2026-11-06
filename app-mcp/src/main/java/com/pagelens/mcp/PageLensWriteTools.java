@@ -207,7 +207,7 @@ public class PageLensWriteTools {
 
     private SyncToolSpecification tool(String name, String title, ToolAnnotations annotations, String description,
                                        ToolArgs.Schema schema, Function<ToolArgs, Object> handler) {
-        Tool tool = Tool.builder().name(name).title(title).description(description).inputSchema(schema.build())
+        Tool tool = Tool.builder(name, schema.build()).title(title).description(description)
                 .annotations(annotations).build();
         return new SyncToolSpecification(tool, (exchange, req) -> tools.call(name, req.arguments(), handler));
     }

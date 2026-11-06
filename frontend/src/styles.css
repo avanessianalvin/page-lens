@@ -15,6 +15,20 @@ body {
   color: var(--p-text-color);
 }
 
+/* Dark theme (Settings → Appearance). PrimeVue switches its own tokens on the same class. */
+.pl-dark {
+  color-scheme: dark;
+}
+.pl-dark body {
+  background: var(--p-surface-950);
+}
+.pl-dark .pl-thumb {
+  background: var(--p-surface-700);
+}
+.pl-dark a {
+  color: var(--p-primary-300);
+}
+
 .pl-page {
   max-width: 1280px;
   margin: 0 auto;

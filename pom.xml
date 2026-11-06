@@ -29,6 +29,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <springdoc.version>3.2.0</springdoc.version>
         <mcp-sdk.version>2.1.0</mcp-sdk.version>
+        <jacoco.version>0.8.16</jacoco.version>
+        <!-- -Djacoco.haltOnFailure=false to report without failing (e.g. when Docker is down). -->
+        <jacoco.haltOnFailure>true</jacoco.haltOnFailure>
 
         <!--
           Security overrides of Spring Boot 4.1.2-managed versions (2026-11-05, flagged by Mend in the IDE).
@@ -91,6 +94,51 @@
 
     <build>
         <plugins>
+            <!-- Test coverage: per-module HTML report in <module>/target/site/jacoco/index.html after `verify`. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <!-- Floor, not a target: fails the build if a module drops below 70 % line coverage.
+                         Note: integration tests that skip without Docker lower coverage, so run with Docker. -->
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <haltOnFailure>${jacoco.haltOnFailure}</haltOnFailure>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.70</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>

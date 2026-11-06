@@ -29,7 +29,7 @@ npm run gen:api    # regenerate src/api/schema.d.ts from app-web/target/openapi.
 
 | What | Start | Stop |
 |---|---|---|
-| Dashboard / REST API / scheduler | `java -jar app-web/target/pagelens-web.jar` (rebuild the frontend first if it changed) | Ctrl+C |
+| Dashboard / REST API / scheduler / backups | `scripts/pagelens-web.cmd` or `scripts/pagelens-web.sh` (or `java -jar app-web/target/pagelens-web.jar`). Rebuild the frontend first if it changed. | Ctrl+C |
 | MCP server | Launched by Claude (SETUP.md §8). It runs while the Claude session is open. | Claude closes stdin; the server finishes in-flight calls (max 15 s) and exits |
 
 The dashboard listens on `http://127.0.0.1:8080` only. Only app-web runs scheduled syncs. A sync left `RUNNING` by a crashed process is marked `FAILED` after 2 hours.
@@ -127,7 +127,66 @@ The MCP process logs to **stderr and the log files only**. stdout is the MCP pro
 | Publish fails with an "is a local/private address" or HTTP 4xx check | Instagram must download the media itself: put it on a public https server (or upload a video file, Facebook Login accounts only). |
 | Job stuck in PROCESSING | Large videos can take minutes. After the timeout the job fails with "still processing"; Retry later reuses the same container. |
 | Analysis says "smallSample" everywhere | Too few posts in the period. Widen it (`period=all`), or wait for more history. |
+| Backup fails "pg_dump not found" | Install the PostgreSQL client tools, or set `PAGELENS_PG_DUMP` to the full path of `pg_dump`(`.exe`). |
+| Backup fails "server version mismatch" | `pg_dump` must be the same major version as the server, or newer. Point `PAGELENS_PG_DUMP` at the matching one. |
+| A commit is blocked by "possible secret" | Move the value into `.env` (git-ignored). For a deliberate test value, add `pagelens:allow-secret` on that line. |
 
 ## Backup / restore
 
-Arrives in Phase 4 (nightly `pg_dump` script). Until then, dump only the PageLens schema: `pg_dump -h localhost -U pagelens -d postgres -n pagelens -Fc > pagelens.dump`. Restore with `pg_restore -h localhost -U pagelens -d postgres --clean pagelens.dump`. Back up `PAGELENS_ENCRYPTION_KEY` separately, because without it the stored tokens are unusable.
+**Backups.**
+- Nightly at `PAGELENS_BACKUP_CRON` (03:15), app-web runs `pg_dump --format custom --schema pagelens` into `PAGELENS_BACKUP_DIR` (default `backups/`, git-ignored) as `pagelens-YYYYMMDD-HHMMSS.dump`. Times are UTC.
+- Retention deletes dumps older than `PAGELENS_BACKUP_KEEP_DAYS` (14) and always keeps the newest three.
+- Every run is recorded (Settings → Backups, `GET /api/backups`) and audited.
+- A failed backup, or none in 48 h, raises an alert.
+- **Back up now:** Settings, or `POST /api/backups`.
+- The dump contains data only. **`PAGELENS_ENCRYPTION_KEY` is not in it.** Keep the key separately: without it the restored tokens can't be decrypted, and every account must be reconnected.
+
+**Restore.** The test suite runs this exact procedure on every build.
+1. Stop app-web (Ctrl+C) and close Claude sessions, so nothing writes during the restore.
+2. Restore the chosen dump into the `pagelens` schema:
+   ```
+   # Git Bash / macOS / Linux
+   PGPASSWORD='<pagelens db password>' pg_restore --host localhost --port 5432 --username pagelens --dbname postgres \
+     --clean --if-exists --no-owner --schema pagelens backups/pagelens-YYYYMMDD-HHMMSS.dump
+
+   # PowerShell
+   $env:PGPASSWORD = '<pagelens db password>'
+   & "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" --host localhost --port 5432 --username pagelens --dbname postgres `
+     --clean --if-exists --no-owner --schema pagelens backups\pagelens-YYYYMMDD-HHMMSS.dump
+   Remove-Item Env:PGPASSWORD
+   ```
+   `--clean --if-exists` drops and recreates the PageLens tables only. Other schemas in the `postgres` database are untouched.
+3. Make sure `.env` has the same `PAGELENS_ENCRYPTION_KEY` as when the backup was taken.
+4. Start app-web. Flyway applies any migrations newer than the backup, and the next sync fills in data since the backup.
+
+To inspect a dump without restoring it: `pg_restore --list backups/<file>.dump`.
+
+## Alerts
+
+Shown as the bell in the header, on the Overview page, on each account card, and in Claude's `get_sync_status`. Counts appear in `/actuator/health` → `pagelens` when logged in. They're computed from local state on demand:
+
+| Kind | Severity | Means / do |
+|---|---|---|
+| `needs_reconnect`, `token_invalid` | critical | Instagram rejected the token. Reconnect the account. |
+| `sync_failed_twice` | critical | The last two full syncs failed. Read the error in Logs → Sync runs. |
+| `token_expiring` | warning | Expires within 7 days. Facebook Login: reconnect. Instagram Login: refreshes automatically, so reconnect only if this persists. |
+| `data_stale` | warning | No successful sync for 48 h. Is app-web running? |
+| `backup_failed`, `backup_stale` | warning | See Settings → Backups. Usually `pg_dump` is missing (set `PAGELENS_PG_DUMP`). |
+| `publish_failed` | warning | A publish job failed in the last 24 h. Open Publish to retry. |
+| `rate_limited` | info | Instagram's budget is used up. Syncs resume by themselves. |
+| `backups_disabled` | info | `PAGELENS_BACKUP_ENABLED=false`. |
+
+## Export and purge
+
+- **Export** (Settings → Export, or the API):
+  - `GET /api/export/posts.csv|posts.json|daily.csv?accountId=&period=` (default: all time).
+  - CSV is UTF-8 with a BOM (Excel-safe for Farsi and Armenian), and formula-like cells are neutralised.
+  - Empty means "not returned by Instagram".
+- **Purge** (Settings → Purge, or `POST /api/accounts/{id}/purge?confirm=<username>`):
+  - Deletes all synced data for one account but keeps it connected; the next sync rebuilds it from Instagram.
+  - It's audited, and nothing changes on Instagram.
+  - Disconnect (Accounts page) removes the account and token as well.
+
+## Test coverage
+
+`./mvnw verify` writes a JaCoCo report per module to `<module>/target/site/jacoco/index.html`. The build fails if a module drops below **70 % line coverage**. If Docker is down, the integration tests skip and coverage falls; then run `./mvnw verify -Djacoco.haltOnFailure=false` for a report without the gate, but don't trust that build.

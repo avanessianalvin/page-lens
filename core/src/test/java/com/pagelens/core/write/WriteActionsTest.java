@@ -311,6 +311,50 @@ class WriteActionsTest {
     }
 
     @Test
+    void interruptedJobsAreResolvedByInstagramsStatusNeverRepublished() {
+        jdbc.sql("""
+                INSERT INTO publish_job (account_id, idempotency_key, kind, items_json, item_count, actor, status,
+                                         container_id, updated_at)
+                VALUES (:a, 'stale-published', 'IMAGE', '[]', 1, 'ui', 'PUBLISHING', 'c-pub', now() - interval '1 hour'),
+                       (:a, 'stale-unknown', 'IMAGE', '[]', 1, 'ui', 'PROCESSING', 'c-fin', now() - interval '1 hour'),
+                       (:a, 'fresh', 'IMAGE', '[]', 1, 'ui', 'PROCESSING', 'c-new', now())
+                """).param("a", accountId).update();
+        fake.onJson("GET", "/v27.0/c-pub", "{\"status_code\":\"PUBLISHED\"}");
+        fake.onJson("GET", "/v27.0/c-fin", "{\"status_code\":\"FINISHED\"}");
+
+        assertThat(publisher.recoverStale()).isEqualTo(2);
+
+        assertThat(status("stale-published")).isEqualTo("PUBLISHED");
+        assertThat(status("stale-unknown")).isEqualTo("FAILED");
+        assertThat(status("fresh")).isEqualTo("PROCESSING"); // recent: maybe still running elsewhere, left alone
+        assertThat(posts("/v27.0/" + IG + "/media_publish")).isEmpty(); // nothing was published by recovery
+    }
+
+    @Test
+    void retryReusesTheExistingContainer() throws Exception {
+        fake.media("/img/r.jpg", "image/jpeg", 1000);
+        fake.onJson("POST", "/v27.0/" + IG + "/media", "{\"id\":\"c-retry\"}");
+        AtomicInteger publishCalls = new AtomicInteger();
+        fake.onJson("GET", "/v27.0/c-retry", "{\"status_code\":\"FINISHED\"}");
+        fake.on("POST", "/v27.0/" + IG + "/media_publish", r -> publishCalls.incrementAndGet() == 1
+                ? Response.error(400, 9007, "Media is not ready for publishing")
+                : Response.json("{\"id\":\"m-retry\"}"));
+        fake.onJson("GET", "/v27.0/m-retry", "{\"id\":\"m-retry\",\"media_type\":\"IMAGE\"}");
+
+        long jobId = (Long) publisher.submit(new PublishRequest(accountId, Kind.IMAGE, null,
+                List.of(new Item(ItemType.IMAGE, fake.url() + "/img/r.jpg", null)), null, "key-retry"), Actor.UI)
+                .details().get("jobId");
+        assertThat(publisher.await(jobId, Duration.ofSeconds(10)).status()).isEqualTo(JobStatus.FAILED);
+
+        assertThat(publisher.retry(jobId, Actor.UI).ok()).isTrue();
+        var job = publisher.await(jobId, Duration.ofSeconds(10));
+
+        assertThat(job.status()).isEqualTo(JobStatus.PUBLISHED);
+        assertThat(posts("/v27.0/" + IG + "/media")).hasSize(1); // the container was reused, not re-created
+        assertThat(publisher.retry(jobId, Actor.UI).errors().getFirst()).contains("Only failed jobs");
+    }
+
+    @Test
     void privateAddressesAreRejected() {
         assertThat(MediaProbe.isPrivate("localhost")).isTrue();
         assertThat(MediaProbe.isPrivate("127.0.0.1")).isTrue();
@@ -324,6 +368,11 @@ class WriteActionsTest {
     /** POSTs only: the sync's GET /media shares the path with container creation. */
     private static List<FakeGraphApi.Request> posts(String path) {
         return fake.requests(path).stream().filter(r -> r.method().equals("POST")).toList();
+    }
+
+    private String status(String key) {
+        return jdbc.sql("SELECT status FROM publish_job WHERE idempotency_key = :k").param("k", key)
+                .query(String.class).single();
     }
 
     private long commentId(String igId) {

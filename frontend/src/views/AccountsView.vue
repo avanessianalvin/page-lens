@@ -11,11 +11,13 @@ import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { api, call, type Schemas } from '@/api/client'
 import { useAccountsStore } from '@/stores/accounts'
+import { useAlertsStore } from '@/stores/alerts'
 import { formatDateTime, formatNumber, relativeDays } from '@/format'
 
 type LoginType = 'INSTAGRAM_LOGIN' | 'FACEBOOK_LOGIN'
 
 const store = useAccountsStore()
+const alerts = useAlertsStore()
 const toast = useToast()
 const confirm = useConfirm()
 const route = useRoute()
@@ -77,6 +79,17 @@ async function connectWithToken() {
     tokenValue.value = ''
     busy.value = false
   }
+}
+
+async function syncAll() {
+  const res = await call(api.POST('/api/accounts/sync-all'))
+  toast.add({
+    severity: 'info',
+    summary: `Sync started for ${res.started?.length ?? 0} account(s)`,
+    detail: res.skipped?.length ? `${res.skipped.length} already syncing` : undefined,
+    life: 4000,
+  })
+  runs.value = await call(api.GET('/api/sync-runs', { params: { query: { limit: 20 } } }))
 }
 
 async function syncNow(id: number, quiet = false) {
@@ -141,6 +154,9 @@ onUnmounted(() => window.clearInterval(poll))
       <Button label="Connect with Facebook" icon="pi pi-facebook" severity="secondary"
         :disabled="!options?.facebookLogin || busy" @click="connect('FACEBOOK_LOGIN')" />
       <Button label="Paste a token" icon="pi pi-key" text @click="tokenDialog = true" />
+      <span class="pl-spacer-flex" />
+      <Button v-if="store.items.length > 1" label="Sync all" icon="pi pi-refresh" severity="secondary" outlined
+        @click="syncAll" />
     </div>
     <Message v-if="options && !options.instagramLogin && !options.facebookLogin" severity="warn" :closable="false">
       No Meta app is configured yet. Add META_INSTAGRAM_APP_ID / META_INSTAGRAM_APP_SECRET (or META_APP_ID /
@@ -159,6 +175,10 @@ onUnmounted(() => window.clearInterval(poll))
             severity="secondary" />
           <Tag v-if="item.account?.status !== 'ACTIVE'" value="Needs reconnect" severity="danger" />
         </div>
+        <Message v-for="(al, i) in alerts.forAccount(item.account?.id).filter((x) => !['needs_reconnect', 'token_expiring'].includes(x.kind ?? ''))" :key="i"
+          :severity="al.severity === 'CRITICAL' ? 'error' : al.severity === 'WARNING' ? 'warn' : 'info'" :closable="false" size="small">
+          {{ al.message }} <strong v-if="al.action">→ {{ al.action }}</strong>
+        </Message>
         <Message v-if="item.account?.statusMessage" severity="error" :closable="false" size="small">
           {{ item.account.statusMessage }}
         </Message>
@@ -214,6 +234,9 @@ onUnmounted(() => window.clearInterval(poll))
 </template>
 
 <style scoped>
+.pl-spacer-flex {
+  flex: 1;
+}
 .pl-account {
   display: flex;
   gap: 1rem;

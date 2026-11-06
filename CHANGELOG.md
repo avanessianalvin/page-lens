@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+### Phase 4: Hardening
+
+- **Backups:** a nightly `pg_dump` of the `pagelens` schema, run by app-web.
+  - Configurable time, folder and retention (14 days; always keeps the newest 3). Files are written atomically.
+  - The password is passed via `PGPASSWORD`, never on the command line. The connection is read from the live pool.
+  - `pg_dump` is auto-detected on PATH or under `C:\Program Files\PostgreSQL`.
+  - Runs are recorded in the new `backup_run` table (V4) and audited. Settings → Backups has "Back up now".
+  - Restore procedure in RUNBOOK. The test suite runs a real backup → restore round trip.
+- **Alerts** (`AlertService`): reconnect needed, token invalid or expiring, **sync failed twice in a row**, no successful sync in 48 h, backup failed or stale, failed publish in 24 h, rate-limit pause. Shown as a header bell, on Overview and on account cards, in `/actuator/health` (`pagelens` component) and in Claude's `get_sync_status`.
+- **Export:** `/api/export/posts.csv`, `posts.json` and `daily.csv`. UTF-8 BOM, protected against spreadsheet formula injection, and empty means not returned.
+- **Purge per account:** deletes synced data but keeps the account connected. Requires typing the username, and is audited.
+- **Settings page:**
+  - Appearance (light/dark/system), plus the read-only configuration with the env-var names.
+  - Backups (list and run now), export downloads, and purge.
+- **Dark theme:** PrimeVue dark mode, plus a chart palette for the dark surface (`#18181b`). The series color and the small-sample grey were validated with the dataviz validator, and the heatmap ramp flips in dark mode.
+- **Multi-account:** "Sync all" (`POST /api/accounts/sync-all`) and alerts on each account card.
+- **Pre-commit secrets hook** (`.githooks/pre-commit`; enable with `git config core.hooksPath .githooks`). Blocks:
+  - `.env` files, keys and database dumps
+  - Instagram and Facebook tokens, private keys, bcrypt hashes
+  - password/secret assignments and SQL `PASSWORD '...'` (including the doubled-quote form)
+
+  Tested in a throwaway repository.
+- **Start scripts:** `scripts/pagelens-web.cmd` and `.sh`.
+- **Test coverage:**
+  - JaCoCo report per module, with a 70 % line-coverage floor enforced by `verify`. Now core 79 %, web 84 %, MCP 89 %.
+  - New tests for the token refresh/expiry job, the app-log reader, publish recovery and retry, backups (unit and real `pg_dump`), alerts, export, purge and the ops endpoints.
+- **Docs:** a new README, SETUP §10 (backups and the hook), and RUNBOOK sections for backup/restore, alerts, export/purge and coverage.
+- **Tests:** 109, none skipped.
+
+### Phase 4 decisions
+
+- Backups are built into app-web, not Windows Task Scheduler, so there's nothing to install. They need app-web running at the scheduled time.
+- Settings stay read-only. The sync schedule and the write switch are still changed in `.env` plus a restart, a deliberate step.
+- The secrets hook ships disabled; the owner enables it with one `git config`.
+- Dark theme: system default with a manual override, stored in the browser.
+
 ### Phase 3: Write actions
 
 - **Meta research** recorded in `docs/API_NOTES.md` (comment moderation, content publishing, resumable upload, limits).

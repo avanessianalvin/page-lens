@@ -15,6 +15,7 @@ const router = createRouter({
     { path: '/analysis', name: 'analysis', component: () => import('@/views/AnalysisView.vue') },
     { path: '/publish', name: 'publish', component: () => import('@/views/PublishView.vue') },
     { path: '/logs', name: 'logs', component: () => import('@/views/LogsView.vue') },
+    { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/overview' },
   ],
 })

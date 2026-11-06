@@ -77,6 +77,15 @@ pagelens:
     image-timeout: 5m
     video-timeout: 15m
 
+  backup:
+    # Nightly pg_dump of the pagelens schema, run by app-web. Restore: docs/RUNBOOK.md.
+    enabled: ${PAGELENS_BACKUP_ENABLED:true}
+    cron: ${PAGELENS_BACKUP_CRON:0 15 3 * * *}
+    dir: ${PAGELENS_BACKUP_DIR:backups}
+    keep-days: ${PAGELENS_BACKUP_KEEP_DAYS:14}
+    # Path to pg_dump; empty = PATH, then C:\Program Files\PostgreSQL\<newest>\bin.
+    pg-dump: ${PAGELENS_PG_DUMP:}
+
   sync:
     enabled: true
     # Spring cron (sec min hour day month weekday), in this machine's zone.

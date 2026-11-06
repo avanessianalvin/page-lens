@@ -251,6 +251,38 @@ class PageLensWebApplicationTest {
     }
 
     @Test
+    void opsEndpointsAlertsSettingsExportPurgeAndSyncAll() throws Exception {
+        stubInstagramAccount();
+        long id = connections.connectWithToken(LoginType.INSTAGRAM_LOGIN, "TEST-TOKEN-123").getFirst().id();
+        sync.run(id, SyncService.JobType.FULL, SyncService.Trigger.UI);
+
+        assertThat(mvc.get().uri("/api/alerts").with(OWNER)).hasStatusOk().bodyJson()
+                .extractingPath("$[*].kind").asArray().contains("backup_stale");
+        assertThat(mvc.get().uri("/api/settings").with(OWNER)).hasStatusOk().bodyJson()
+                .extractingPath("$.backupEnabled").isEqualTo(true);
+        assertThat(mvc.get().uri("/api/backups").with(OWNER)).hasStatusOk();
+        assertThat(mvc.get().uri("/actuator/health").with(OWNER)).bodyJson()
+                .extractingPath("$.components.pagelens.details.alerts").isEqualTo(1);
+
+        var csv = mvc.get().uri("/api/export/posts.csv?accountId=" + id).with(OWNER).exchange();
+        assertThat(csv).hasStatusOk().headers().hasHeaderSatisfying("Content-Disposition",
+                v -> assertThat(v.getFirst()).contains("attachment").contains("pagelens-pagelens.test-posts-"));
+        byte[] bytes = csv.getResponse().getContentAsByteArray();
+        assertThat(new String(bytes, java.nio.charset.StandardCharsets.UTF_8)).startsWith("﻿post_id").contains("سلام");
+        assertThat(mvc.get().uri("/api/export/posts.json?accountId=" + id).with(OWNER)).hasStatusOk()
+                .bodyJson().extractingPath("$.length()").isEqualTo(3);
+        assertThat(mvc.get().uri("/api/export/daily.csv?accountId=" + id).with(OWNER)).hasStatusOk();
+        assertThat(mvc.get().uri("/api/export/posts.csv?accountId=999999").with(OWNER)).hasStatus(404);
+
+        assertThat(mvc.post().uri("/api/accounts/" + id + "/purge?confirm=nope").with(OWNER).with(csrf())).hasStatus(400);
+        assertThat(mvc.post().uri("/api/accounts/" + id + "/purge?confirm=pagelens.test").with(OWNER).with(csrf()))
+                .hasStatusOk().bodyJson().extractingPath("$.posts").isEqualTo(3);
+
+        assertThat(mvc.post().uri("/api/accounts/sync-all").with(OWNER).with(csrf())).hasStatus(202)
+                .bodyJson().extractingPath("$.started.length()").isEqualTo(1);
+    }
+
+    @Test
     void writeActionsAreForbiddenByDefault() {
         assertThat(mvc.get().uri("/api/write-status").with(OWNER)).bodyJson()
                 .extractingPath("$.writeActionsEnabled").isEqualTo(false);

@@ -92,8 +92,10 @@ Copy the printed `PAGELENS_WEB_PASSWORD_HASH=...` line into `.env` as-is. The us
 ```
 cd frontend && npm install && npm run build && cd ..   # builds the dashboard into app-web
 ./mvnw -DskipTests package                             # bundles it into the jar
-java -jar app-web/target/pagelens-web.jar
+scripts/pagelens-web.cmd      (Windows; or scripts/pagelens-web.sh. Both run app-web/target/pagelens-web.jar)
 ```
+
+The launcher sets `PAGELENS_ENV_FILE`, `PAGELENS_LOG_DIR`, `PAGELENS_BACKUP_DIR` and `PAGELENS_UPLOAD_DIR` relative to the repo, so it works from any folder. It picks Java from `PAGELENS_JAVA`, then `JAVA_HOME` (both must be JDK 21+).
 
 Open <http://127.0.0.1:8080>, log in, and go to **Accounts**:
 
@@ -174,3 +176,8 @@ What publishing can and can't do (Meta's rules, see `docs/API_NOTES.md`):
 - 50 API-published posts per 24 hours. Captions up to 2200 characters, 30 hashtags and 20 @-mentions.
 - Captions can't be edited afterwards, and PageLens doesn't delete posts. Use the Instagram app for both.
 - Every action, dry run or real, is in the audit trail (Logs → Audit trail), with the actor `ui` or `mcp`.
+
+## 10. Backups and the secrets hook
+
+- **Backups** run nightly at 03:15 (`PAGELENS_BACKUP_CRON`) while app-web is running. Each one dumps the `pagelens` schema with `pg_dump` into `backups/` and keeps 14 days (`PAGELENS_BACKUP_KEEP_DAYS`). PageLens finds `pg_dump` on PATH or under `C:\Program Files\PostgreSQL\<version>\bin`; otherwise set `PAGELENS_PG_DUMP`. Check *Settings → Backups* after the first night, or press **Back up now**. To restore, see RUNBOOK.md → Backup / restore. **Keep a copy of `PAGELENS_ENCRYPTION_KEY` somewhere safe and separate**: a backup without it can't decrypt the stored tokens (you'd have to reconnect the accounts).
+- **Secrets hook:** run `git config core.hooksPath .githooks` once. Commits are then blocked if they contain `.env` files, Instagram or Facebook tokens, private keys, bcrypt hashes, or password/secret values; `change-me` placeholders are fine. Mark a deliberate test value with `pagelens:allow-secret`.

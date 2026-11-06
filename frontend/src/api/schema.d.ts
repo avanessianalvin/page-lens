@@ -84,6 +84,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["backups"];
+        put?: never;
+        post: operations["backupNow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/accounts/{id}/sync": {
         parameters: {
             query?: never;
@@ -94,6 +110,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["syncNow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/{id}/purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["purge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/sync-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["syncAll"];
         delete?: never;
         options?: never;
         head?: never;
@@ -324,6 +372,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/export/posts.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["postsJson"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/export/posts.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["postsCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/export/daily.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["dailyCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/session": {
         parameters: {
             query?: never;
@@ -332,6 +428,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["session"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["alerts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -603,6 +715,14 @@ export interface components {
             /** Format: int64 */
             runId?: number;
         };
+        SyncAllResult: {
+            started?: {
+                [key: string]: unknown;
+            }[];
+            skipped?: {
+                [key: string]: unknown;
+            }[];
+        };
         ConnectRequest: {
             /** @enum {string} */
             loginType: "INSTAGRAM_LOGIN" | "FACEBOOK_LOGIN";
@@ -682,6 +802,13 @@ export interface components {
             writeActionsEnabled?: boolean;
             syncCron?: string;
             storiesCron?: string;
+            backupEnabled?: boolean;
+            backupCron?: string;
+            backupDir?: string;
+            /** Format: int32 */
+            backupKeepDays?: number;
+            pgDumpFound?: boolean;
+            version?: string;
         };
         RateLimit: {
             /** Format: int64 */
@@ -825,9 +952,47 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        BackupFile: {
+            name?: string;
+            /** Format: int64 */
+            sizeBytes?: number;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        BackupRun: {
+            /** Format: int64 */
+            id?: number;
+            triggeredBy?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            finishedAt?: string;
+            status?: string;
+            fileName?: string;
+            /** Format: int64 */
+            sizeBytes?: number;
+            errorMessage?: string;
+        };
+        Backups: {
+            runs?: components["schemas"]["BackupRun"][];
+            files?: components["schemas"]["BackupFile"][];
+            dir?: string;
+        };
         Session: {
             authenticated?: boolean;
             username?: string;
+        };
+        Alert: {
+            /** @enum {string} */
+            severity?: "CRITICAL" | "WARNING" | "INFO";
+            kind?: string;
+            /** Format: int64 */
+            accountId?: number;
+            account?: string;
+            message?: string;
+            action?: string;
+            /** Format: date-time */
+            since?: string;
         };
         PagePost: {
             items?: components["schemas"]["Post"][];
@@ -1205,6 +1370,48 @@ export interface operations {
             };
         };
     };
+    backups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Backups"];
+                };
+            };
+        };
+    };
+    backupNow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
     syncNow: {
         parameters: {
             query?: {
@@ -1225,6 +1432,52 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SyncStarted"];
+                };
+            };
+        };
+    };
+    purge: {
+        parameters: {
+            query: {
+                confirm: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: number;
+                    };
+                };
+            };
+        };
+    };
+    syncAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SyncAllResult"];
                 };
             };
         };
@@ -1552,6 +1805,83 @@ export interface operations {
             };
         };
     };
+    postsJson: {
+        parameters: {
+            query: {
+                accountId: number;
+                period?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    postsCsv: {
+        parameters: {
+            query: {
+                accountId: number;
+                period?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    dailyCsv: {
+        parameters: {
+            query: {
+                accountId: number;
+                period?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
     session: {
         parameters: {
             query?: never;
@@ -1568,6 +1898,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["Session"];
+                };
+            };
+        };
+    };
+    alerts: {
+        parameters: {
+            query?: {
+                accountId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Alert"][];
                 };
             };
         };

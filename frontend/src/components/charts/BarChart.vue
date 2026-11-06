@@ -8,7 +8,7 @@ import { BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import { SVGRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
-import { GRID, INK, INK_2, MUTED, SERIES, esc, tooltipBase, tooltipRow } from './theme'
+import { esc, tooltipBase, tooltipRow, useChartTokens } from './theme'
 
 use([BarChart, GridComponent, TooltipComponent, SVGRenderer])
 
@@ -31,6 +31,8 @@ const props = withDefaults(defineProps<{
   keepOrder: false,
 })
 
+const tokens = useChartTokens()
+
 const rows = computed(() => {
   const withValues = props.bars.filter((b) => b.value != null) as (Bar & { value: number })[]
   const sorted = props.keepOrder ? withValues : [...withValues].sort((a, b) => b.value - a.value)
@@ -39,51 +41,55 @@ const rows = computed(() => {
 
 const height = computed(() => Math.max(80, rows.value.length * 34 + 24))
 
-const option = computed(() => ({
-  animation: false,
-  grid: { left: 8, right: 64, top: 4, bottom: 4, containLabel: true },
-  tooltip: {
-    ...tooltipBase,
-    trigger: 'item',
-    formatter: (p: { dataIndex: number }) => {
-      const r = rows.value[p.dataIndex]!
-      return `<div style="color:${INK_2}">${esc(r.label)}${r.detail ? ` · ${esc(r.detail)}` : ''}</div>`
-        + tooltipRow(r.smallSample ? MUTED : SERIES, props.format(r.value), esc(props.label))
-        + (r.smallSample ? `<div style="color:${MUTED}">Small sample: unreliable</div>` : '')
-    },
-  },
-  xAxis: {
-    type: 'value',
-    min: 0,
-    axisLabel: { show: false },
-    splitLine: { lineStyle: { color: GRID, width: 1, type: 'solid' } },
-  },
-  yAxis: {
-    type: 'category',
-    data: rows.value.map((r) => r.label),
-    axisTick: { show: false },
-    axisLine: { lineStyle: { color: GRID } },
-    axisLabel: {
-      color: INK,
-      width: 160,
-      overflow: 'truncate',
-      formatter: (v: string, i: number) => {
-        const r = rows.value[i]
-        return r?.detail ? `${v}\n{d|${r.detail}${r.smallSample ? ' · small sample' : ''}}` : v
+const option = computed(() => {
+  const t = tokens.value
+  return {
+    animation: false,
+    backgroundColor: 'transparent',
+    grid: { left: 8, right: 64, top: 4, bottom: 4, containLabel: true },
+    tooltip: {
+      ...tooltipBase(t),
+      trigger: 'item',
+      formatter: (p: { dataIndex: number }) => {
+        const r = rows.value[p.dataIndex]!
+        return `<div style="color:${t.INK_2}">${esc(r.label)}${r.detail ? ` · ${esc(r.detail)}` : ''}</div>`
+          + tooltipRow(t, r.smallSample ? t.MUTED : t.SERIES, props.format(r.value), esc(props.label))
+          + (r.smallSample ? `<div style="color:${t.MUTED}">Small sample: unreliable</div>` : '')
       },
-      rich: { d: { color: MUTED, fontSize: 11 } },
     },
-  },
-  series: [{
-    type: 'bar',
-    barMaxWidth: 24,
-    data: rows.value.map((r) => ({
-      value: r.value,
-      itemStyle: { color: r.smallSample ? MUTED : SERIES, borderRadius: [0, 4, 4, 0] },
-    })),
-    label: { show: true, position: 'right', color: INK, formatter: (p: { value: number }) => props.format(p.value) },
-  }],
-}))
+    xAxis: {
+      type: 'value',
+      min: 0,
+      axisLabel: { show: false },
+      splitLine: { lineStyle: { color: t.GRID, width: 1, type: 'solid' } },
+    },
+    yAxis: {
+      type: 'category',
+      data: rows.value.map((r) => r.label),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: t.GRID } },
+      axisLabel: {
+        color: t.INK,
+        width: 160,
+        overflow: 'truncate',
+        formatter: (v: string, i: number) => {
+          const r = rows.value[i]
+          return r?.detail ? `${v}\n{d|${r.detail}${r.smallSample ? ' · small sample' : ''}}` : v
+        },
+        rich: { d: { color: t.MUTED, fontSize: 11 } },
+      },
+    },
+    series: [{
+      type: 'bar',
+      barMaxWidth: 24,
+      data: rows.value.map((r) => ({
+        value: r.value,
+        itemStyle: { color: r.smallSample ? t.MUTED : t.SERIES, borderRadius: [0, 4, 4, 0] },
+      })),
+      label: { show: true, position: 'right', color: t.INK, formatter: (p: { value: number }) => props.format(p.value) },
+    }],
+  }
+})
 </script>
 
 <template>

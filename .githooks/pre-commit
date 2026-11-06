@@ -1,0 +1,49 @@
+#!/bin/sh
+# PageLens pre-commit secrets check (plan section 12: "a pre-commit check").
+# Enable once per clone:   git config core.hooksPath .githooks
+# A line that must contain a look-alike (e.g. a test fixture) can be marked with:  pagelens:allow-secret
+# Emergency bypass (not recommended): git commit --no-verify
+
+fail=0
+report() {
+  echo "pre-commit: $1" >&2
+  fail=1
+}
+
+# Files that must never be committed.
+for f in $(git diff --cached --name-only --diff-filter=ACMR); do
+  base=${f##*/}
+  case "$base" in
+    .env.example) ;;
+    .env|.env.*) report "refusing to commit $f (local secrets file; it is git-ignored for a reason)" ;;
+    application-local.yml) report "refusing to commit $f (local overrides may hold secrets)" ;;
+    *.pem|*.key|*.p12|*.pfx|*.dump) report "refusing to commit $f (key or database dump)" ;;
+  esac
+done
+
+# Secret-looking content in staged text files (the staged version, not the working copy).
+patterns='IG(QV|AA)[A-Za-z0-9_-]{40,}|EAA[A-Za-z0-9]{40,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+patterns="$patterns"'|PAGELENS_ENCRYPTION_KEY=[A-Za-z0-9+/]{20,}'
+patterns="$patterns"'|(PASSWORD|SECRET|APP_SECRET)[A-Z_]*=[^[:space:]]+'
+q="'"
+# SQL: PASSWORD 'x' and the doubled-quote form PASSWORD ''x'' used inside SQL string literals.
+patterns="$patterns|PASSWORD[[:space:]]+$q+[^$q[:space:]]+$q+"
+patterns="$patterns"'|\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}'
+
+for f in $(git diff --cached --name-only --diff-filter=ACMR); do
+  case "$f" in
+    *.png|*.jpg|*.jpeg|*.gif|*.ico|*.svg|*.woff|*.woff2|*.ttf|*.eot|*.jar|package-lock.json|*/package-lock.json) continue ;;
+  esac
+  hits=$(git show ":$f" 2>/dev/null | grep -nE "$patterns" | grep -v 'pagelens:allow-secret' \
+    | grep -vE "=(change-me)?\$|=change-me[[:space:]]|PASSWORD[[:space:]]+$q+change-me$q+")
+  if [ -n "$hits" ]; then
+    report "possible secret in $f:"
+    echo "$hits" | cut -c1-160 | sed 's/^/    /' >&2
+  fi
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-commit: commit blocked. Remove the secret (keep it in .env), or mark a false positive with 'pagelens:allow-secret'." >&2
+  exit 1
+fi
+exit 0

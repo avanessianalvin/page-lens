@@ -78,6 +78,27 @@ public class SyncRunRepository {
         return spec.query(SyncRunRepository::map).list();
     }
 
+    /** Finished runs of one job type for an account, newest first (RUNNING excluded). */
+    public List<SyncRun> recentFinished(long accountId, String jobType, int limit) {
+        return jdbc.sql("""
+                        SELECT r.*, a.username FROM sync_run r LEFT JOIN ig_account a ON a.id = r.account_id
+                        WHERE r.account_id = :acc AND r.job_type = :job AND r.status <> 'RUNNING'
+                        ORDER BY r.started_at DESC, r.id DESC LIMIT :limit
+                        """)
+                .param("acc", accountId).param("job", jobType).param("limit", limit)
+                .query(SyncRunRepository::map).list();
+    }
+
+    /** Newest successful (or partially successful) run of a job type for an account. */
+    public java.util.Optional<SyncRun> lastSuccessful(long accountId, String jobType) {
+        return jdbc.sql("""
+                        SELECT r.*, a.username FROM sync_run r LEFT JOIN ig_account a ON a.id = r.account_id
+                        WHERE r.account_id = :acc AND r.job_type = :job AND r.status IN ('SUCCEEDED', 'PARTIAL')
+                        ORDER BY r.started_at DESC LIMIT 1
+                        """)
+                .param("acc", accountId).param("job", jobType).query(SyncRunRepository::map).optional();
+    }
+
     public java.util.Optional<SyncRun> find(long runId) {
         return jdbc.sql("SELECT r.*, a.username FROM sync_run r LEFT JOIN ig_account a ON a.id = r.account_id WHERE r.id = :id")
                 .param("id", runId).query(SyncRunRepository::map).optional();

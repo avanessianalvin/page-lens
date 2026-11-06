@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-PageLens is a local-first Instagram Insights service (Instagram Graph API → PostgreSQL → MCP server + REST API + Vue dashboard). The full spec is `docs/Instagram Insights MCP Service Project Plan.md`. It is the source of truth for schema, REST endpoints, MCP tool names, and dashboard pages; read it before starting a phase. **Phases 0–3 are done** (Phase 4, hardening, is next); see `CHANGELOG.md` for what exists and which decisions the owner has made. The owner makes all git commits: never commit.
+PageLens is a local-first Instagram Insights service (Instagram Graph API → PostgreSQL → MCP server + REST API + Vue dashboard). The full spec is `docs/Instagram Insights MCP Service Project Plan.md`. It is the source of truth for schema, REST endpoints, MCP tool names, and dashboard pages; read it before starting a phase. **All plan phases (0–4) are done**; see `CHANGELOG.md` for what exists and which decisions the owner has made. The owner makes all git commits: never commit.
 
 ## Commands
 
@@ -46,6 +46,7 @@ Spring Boot 4.1 (Jackson 3 = `tools.jackson.*`, modular starters such as `spring
   - `repo`: `JdbcClient` repositories with explicit SQL, returning records. There is **no JPA**.
   - `crypto`: `TokenCipher`.
   - `analysis`: `AnalysisService` loads local data, and `Analytics` holds the pure aggregation rules. Add new analysis rules there and unit-test them without a database. Shared by REST and MCP.
+  - `backup`: `BackupService` (pg_dump of the `pagelens` schema; connection from the live Hikari pool, password via `PGPASSWORD` only) and `BackupScheduler`. `alerts/AlertService` computes alerts from local state. `export/ExportService` writes CSV/JSON. `auth/AccountPurgeService` purges an account's data but keeps it connected.
   - `write`: every Instagram write goes through here.
     - `WriteGuard` is the master switch. `CommentActions` handles reply, hide and delete.
     - `PublishService` runs the container workflow as a resumable job in `publish_job`. `PublishValidator` holds Meta's rules, `MediaProbe` pre-checks URLs, and `UploadStore` stages local videos.
@@ -59,7 +60,7 @@ Spring Boot 4.1 (Jackson 3 = `tools.jackson.*`, modular starters such as `spring
   - `StdioRunner` serves the real fd 0/1 and blocks until the client disconnects.
   - Tool descriptions are what Claude uses to choose a tool, so keep them precise.
   - On stdin EOF the server holds EOF back from the SDK transport until in-flight calls have answered (`EofSignallingInputStream`). The SDK closes its output the moment it reads EOF.
-- `frontend/`: Vue 3 + Vite + TS + Pinia + PrimeVue **4.5.5** + ECharts. `src/api/client.ts` wraps openapi-fetch and adds the XSRF header. Pages live in `src/views`. Charts use `src/components/charts/` (`LineChart`, `BarChart`, `HeatmapChart`, tokens in `theme.ts`), following the dataviz rules: one series and one axis per chart, a single hue (sequential blue for heatmaps), small samples in muted gray *and* labelled, a hover tooltip, and a table toggle.
+- `frontend/`: Vue 3 + Vite + TS + Pinia + PrimeVue **4.5.5** + ECharts. `src/api/client.ts` wraps openapi-fetch and adds the XSRF header. Pages live in `src/views`. Charts use `src/components/charts/` (`LineChart`, `BarChart`, `HeatmapChart`, tokens in `theme.ts`), following the dataviz rules: one series and one axis per chart, a single hue (sequential blue for heatmaps), small samples in muted gray *and* labelled, a hover tooltip, and a table toggle. Chart colors come from `useChartTokens()`, which has a light and a dark set, both validated against their card surfaces. Never hard-code chart colors in components. The theme (`stores/theme.ts`) toggles the `pl-dark` class on `<html>`; PrimeVue's dark mode keys off it. Alerts poll via `stores/alerts.ts`.
 
 Both app main classes live in package `com.pagelens`, so scanning picks up `com.pagelens.core.*`. Don't define a `JsonMapper` bean in core, because Boot would back off its own web mapper. Core uses the `GraphJson` wrapper instead.
 
@@ -102,6 +103,9 @@ Logging: both apps include `core/src/main/resources/logback-pagelens-files.xml`,
   - local video uploads are for Facebook Login accounts only
 - **Templates:** don't put `//` inside Vue template attribute expressions (e.g. URL strings). vue-tsc mis-parses them; use script constants.
 - **REST bodies:** optional booleans must be `Boolean`. Jackson 3 rejects a missing JSON field for a primitive.
+- **Coverage:** `verify` enforces a 70 % line-coverage floor per module (JaCoCo). Add tests with new code. Run with Docker up, because skipped integration tests lower coverage.
+- **Backups never contain the encryption key**, and restores are manual (RUNBOOK). Don't add a restore button: it drops tables.
+- `.githooks/pre-commit` blocks secrets once the owner enables it. Keep test values recognisably fake (e.g. `TEST-TOKEN-123`), or mark a line with `pagelens:allow-secret`.
 - The dashboard binds to `127.0.0.1` only (owner decision). Security: form login with a bcrypt hash (`PAGELENS_WEB_PASSWORD_HASH`), SPA cookie CSRF (`X-XSRF-TOKEN`), `/api/**` → 401, login lockout. Note that Spring Security's MockMvc support replaces the CSRF repository, so cookie behavior can only be verified against the running app.
 - Database: PageLens shares the `postgres` database and owns only the `pagelens` schema (`PAGELENS_DB_SCHEMA`). Keep SQL unqualified and never create objects in `public`. `FlywayMigrationTest` asserts that. Bind `TIMESTAMPTZ` values as UTC `OffsetDateTime` (`Db.ts`).
 - Never edit an applied Flyway migration; add a new `V<n>__*.sql`. SQL stays portable where practical (JSON stored as TEXT).
