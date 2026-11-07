@@ -9,12 +9,20 @@ import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { api, call, type Schemas } from '@/api/client'
+import { api, call, xsrfToken, type Schemas } from '@/api/client'
 import { useAccountsStore } from '@/stores/accounts'
 import { useAlertsStore } from '@/stores/alerts'
 import { formatDateTime, formatNumber, relativeDays } from '@/format'
 
 type LoginType = 'INSTAGRAM_LOGIN' | 'FACEBOOK_LOGIN'
+
+const SOURCE_LABELS: Record<string, string> = {
+  INSTAGRAM_LOGIN: 'Instagram Login',
+  FACEBOOK_LOGIN: 'Facebook Login',
+  WINDSOR: 'Windsor.ai (read-only)',
+  IMPORT: 'CSV import (read-only)',
+}
+const BUSINESS_SUITE_URL = 'https://business.facebook.com/latest/insights/content'
 
 const store = useAccountsStore()
 const alerts = useAlertsStore()
@@ -30,6 +38,11 @@ const tokenDialog = ref(false)
 const tokenType = ref<LoginType>('INSTAGRAM_LOGIN')
 const tokenValue = ref('')
 const busy = ref(false)
+const sources = ref<Schemas['SourcesStatus'] | null>(null)
+const importDialog = ref(false)
+const importAccountId = ref<number | null>(null)
+const importing = ref(false)
+const importReport = ref<Schemas['Report'] | null>(null)
 let poll: number | undefined
 
 const loginTypes = [
@@ -117,6 +130,55 @@ function disconnect(a: Schemas['Account']) {
   })
 }
 
+function isDirect(a?: Schemas['Account']) {
+  return a?.loginType === 'INSTAGRAM_LOGIN' || a?.loginType === 'FACEBOOK_LOGIN'
+}
+
+async function addFromWindsor() {
+  busy.value = true
+  try {
+    const found = await call(api.POST('/api/sources/windsor/accounts'))
+    const added = found.filter((f) => f.added)
+    toast.add({
+      severity: found.length ? 'success' : 'warn',
+      summary: found.length ? `Windsor.ai:  account(s),  new` : 'Windsor.ai returned no Instagram accounts',
+      detail: found.length ? 'First sync started for the new ones.' : 'Connect the account in your Windsor.ai workspace first.',
+      life: 6000,
+    })
+    for (const f of added) if (f.loginType === 'WINDSOR' && f.accountId) await syncNow(f.accountId, true)
+    await load()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Windsor.ai', detail: String(e), life: 10000 })
+  } finally {
+    busy.value = false
+  }
+}
+
+async function importCsv(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  importing.value = true
+  importReport.value = null
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    const query = importAccountId.value ? `?accountId=${importAccountId.value}` : ''
+    const res = await fetch(`/api/sources/import/business-suite${query}`, {
+      method: 'POST', credentials: 'same-origin', headers: { 'X-XSRF-TOKEN': xsrfToken() ?? '' }, body: form,
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.detail ?? `Import failed (${res.status})`)
+    importReport.value = json as Schemas['Report']
+    await load()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Import failed', detail: String(e), life: 10000 })
+  } finally {
+    importing.value = false
+    input.value = ''
+  }
+}
+
 function tokenSeverity(t?: Schemas['TokenHealth']) {
   if (!t || t.status === 'INVALID' || t.status === 'MISSING') return 'danger'
   return t.expiringSoon || t.status === 'EXPIRING' ? 'warn' : 'success'
@@ -128,6 +190,7 @@ function runSeverity(status?: string) {
 
 onMounted(async () => {
   options.value = await call(api.GET('/api/accounts/connect-options')).catch(() => null)
+  sources.value = await call(api.GET('/api/sources')).catch(() => null)
   if (route.query.connected) {
     toast.add({ severity: 'success', summary: `Connected ${route.query.connected} account(s); first sync started`, life: 5000 })
   }
@@ -154,6 +217,10 @@ onUnmounted(() => window.clearInterval(poll))
       <Button label="Connect with Facebook" icon="pi pi-facebook" severity="secondary"
         :disabled="!options?.facebookLogin || busy" @click="connect('FACEBOOK_LOGIN')" />
       <Button label="Paste a token" icon="pi pi-key" text @click="tokenDialog = true" />
+      <Button label="Add from Windsor.ai" icon="pi pi-cloud-download" severity="secondary" outlined
+        :disabled="!sources?.windsorConfigured || busy" :title="sources?.windsorConfigured ? '' : 'Set WINDSOR_API_KEY in .env and restart'"
+        @click="addFromWindsor" />
+      <Button label="Import CSV" icon="pi pi-upload" severity="secondary" outlined @click="importDialog = true; importReport = null" />
       <span class="pl-spacer-flex" />
       <Button v-if="store.items.length > 1" label="Sync all" icon="pi pi-refresh" severity="secondary" outlined
         @click="syncAll" />
@@ -161,6 +228,8 @@ onUnmounted(() => window.clearInterval(poll))
     <Message v-if="options && !options.instagramLogin && !options.facebookLogin" severity="warn" :closable="false">
       No Meta app is configured yet. Add META_INSTAGRAM_APP_ID / META_INSTAGRAM_APP_SECRET (or META_APP_ID /
       META_APP_SECRET) to .env and restart. See docs/SETUP.md. OAuth redirect URI: <code>{{ options.redirectUri }}</code>
+      If Meta's developer site isn't available to you, use <strong>Add from Windsor.ai</strong> or
+      <strong>Import CSV</strong> instead (read-only; see docs/META_ACCESS.md).
     </Message>
 
     <p v-if="!loading && store.items.length === 0" class="pl-muted">No accounts connected yet.</p>
@@ -171,8 +240,7 @@ onUnmounted(() => window.clearInterval(poll))
         <div class="pl-account-title">
           <strong>@{{ item.account?.username }}</strong>
           <span class="pl-muted" dir="auto">{{ item.account?.displayName }}</span>
-          <Tag :value="item.account?.loginType === 'FACEBOOK_LOGIN' ? 'Facebook Login' : 'Instagram Login'"
-            severity="secondary" />
+          <Tag :value="SOURCE_LABELS[item.account?.loginType ?? ''] ?? item.account?.loginType" severity="secondary" />
           <Tag v-if="item.account?.status !== 'ACTIVE'" value="Needs reconnect" severity="danger" />
         </div>
         <Message v-for="(al, i) in alerts.forAccount(item.account?.id).filter((x) => !['needs_reconnect', 'token_expiring'].includes(x.kind ?? ''))" :key="i"
@@ -187,7 +255,8 @@ onUnmounted(() => window.clearInterval(poll))
           <div class="pl-stat"><div class="label">Posts</div><div class="value">{{ formatNumber(item.account?.mediaCount) }}</div></div>
           <div class="pl-stat">
             <div class="label">Token</div>
-            <Tag :severity="tokenSeverity(item.token)"
+            <span v-if="!isDirect(item.account)" class="pl-muted">Not needed</span>
+            <Tag v-else :severity="tokenSeverity(item.token)"
               :value="item.token?.daysLeft != null ? `${item.token.status} · ${item.token.daysLeft} d left` : (item.token?.status ?? 'MISSING')" />
           </div>
           <div class="pl-stat">
@@ -207,7 +276,8 @@ onUnmounted(() => window.clearInterval(poll))
         </Message>
       </div>
       <div class="pl-account-actions">
-        <Button label="Sync now" icon="pi pi-refresh" size="small" :disabled="item.account?.status !== 'ACTIVE'"
+        <Button label="Sync now" icon="pi pi-refresh" size="small" :disabled="item.account?.status !== 'ACTIVE' || item.account?.loginType === 'IMPORT'"
+          :title="item.account?.loginType === 'IMPORT' ? 'Imported accounts are updated by importing a new CSV' : ''"
           @click="syncNow(item.account!.id!)" />
         <Button label="Posts" icon="pi pi-images" size="small" severity="secondary" outlined
           @click="store.select(item.account!.id!); router.push('/posts')" />
@@ -215,6 +285,36 @@ onUnmounted(() => window.clearInterval(poll))
           @click="disconnect(item.account!)" />
       </div>
     </section>
+
+    <Dialog v-model:visible="importDialog" header="Import a Meta Business Suite export" modal
+      :style="{ width: 'min(640px, 95vw)' }">
+      <ol class="pl-steps">
+        <li>Open <a :href="BUSINESS_SUITE_URL" target="_blank" rel="noopener">Meta Business Suite → Insights → Content</a>
+          and pick the Instagram account.</li>
+        <li>Choose <strong>Export data</strong> → Instagram → <strong>Posts</strong> (or Stories), a date range, CSV.</li>
+        <li>When the report is ready, download it and choose it below. Re-importing is safe: posts are matched by id
+          and each import adds a dated snapshot of their numbers.</li>
+      </ol>
+      <label class="pl-field">
+        <span class="label">Account (only if the file has no "Account ID" column)</span>
+        <Select v-model="importAccountId" :options="store.items.map((i) => ({ label: '@' + i.account?.username, value: i.account?.id }))"
+          option-label="label" option-value="value" placeholder="From the file" show-clear fluid />
+      </label>
+      <input type="file" accept=".csv,text/csv" :disabled="importing" class="pl-file" @change="importCsv" />
+      <p v-if="importing" class="pl-muted"><i class="pi pi-spin pi-spinner" /> Importing…</p>
+      <div v-if="importReport" class="pl-import-report">
+        <Message :severity="importReport.posts ? 'success' : 'warn'" :closable="false">
+          {{ importReport.posts }} post(s) and {{ importReport.snapshots }} snapshot(s) from {{ importReport.rows }} row(s)
+          <template v-if="importReport.accounts?.length"> for {{ importReport.accounts.join(', ') }}</template>.
+        </Message>
+        <Message v-for="(w, i) in importReport.warnings" :key="'w' + i" severity="warn" :closable="false" size="small">{{ w }}</Message>
+        <Message v-for="(s, i) in importReport.skipped" :key="'s' + i" severity="secondary" :closable="false" size="small">Skipped {{ s }}</Message>
+        <p class="pl-muted">Columns used: {{ importReport.mappedColumns?.join(', ') }}</p>
+      </div>
+      <template #footer>
+        <Button label="Close" severity="secondary" text @click="importDialog = false" />
+      </template>
+    </Dialog>
 
     <Dialog v-model:visible="tokenDialog" header="Connect with a token" modal :style="{ width: 'min(560px, 95vw)' }">
       <p class="pl-muted">
@@ -262,6 +362,25 @@ onUnmounted(() => window.clearInterval(poll))
   flex-wrap: wrap;
 }
 .pl-account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pl-steps {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+  line-height: 1.5;
+}
+.pl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+.pl-file {
+  margin: 0.25rem 0 0.75rem;
+}
+.pl-import-report {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;

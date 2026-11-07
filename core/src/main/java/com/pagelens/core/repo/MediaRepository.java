@@ -95,6 +95,11 @@ public class MediaRepository {
                 .query(Long.class).single();
     }
 
+    public Optional<Long> idFor(String igMediaId) {
+        return jdbc.sql("SELECT id FROM media WHERE ig_media_id = :id").param("id", igMediaId)
+                .query(Long.class).optional();
+    }
+
     public boolean exists(String igMediaId) {
         return jdbc.sql("SELECT count(*) FROM media WHERE ig_media_id = :id").param("id", igMediaId)
                 .query(Long.class).single() > 0;

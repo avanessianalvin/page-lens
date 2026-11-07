@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Read-only data sources (no Meta developer app needed)
+
+`developers.facebook.com` is blocked in Armenia ("not available in this location"), so without a Meta app the Graph API sync can't be set up. The owner chose two read-only fallbacks, both documented in `docs/META_ACCESS.md`:
+
+- **Windsor.ai (automatic).**
+  - New login type `WINDSOR`. Its sync calls the Windsor.ai connector API (`WINDSOR_API_KEY`) instead of Meta, and writes through the same repositories and upsert rules as the Graph sync. Analysis, the dashboard and the MCP tools need no changes.
+  - It syncs the profile (and follower history), posts with insights, comments, daily account metrics, audience demographics, and stories (in the stories job).
+  - Each request stays within one of Windsor's field tables.
+  - Accounts → **Add from Windsor.ai** adds every account in the Windsor workspace. Accounts connected directly through Meta are left as they are.
+  - The key is masked in logs and in `api_call_log` (`SecretMasker` now covers `api_key`).
+  - `PAGELENS_WINDSOR_HISTORY_DAYS` (default 30, Windsor's free-plan limit) sets the re-fetch window. Older data stays stored locally.
+- **Meta Business Suite CSV import (manual).**
+  - New login type `IMPORT`. Accounts → **Import CSV** loads the Insights → Content export.
+  - Columns are matched by header name. Unknown numeric columns go to `extra_metrics`. Times are read in the owner's zone. The delimiter (comma, semicolon or tab) and UTF-8/UTF-16 are detected.
+  - Posts are upserted on the post id, and every import adds a dated snapshot.
+  - Imported accounts are never synced, raise no stale-data alert, and are skipped by the scheduler.
+- Both are **read-only**: comment moderation and publishing refuse them with a clear message, and `TokenService.ref` refuses them too. An `IMPORT` account upgrades to `WINDSOR` when Windsor returns it. A direct Meta connection is never downgraded.
+- REST: `GET /api/sources`, `POST /api/sources/windsor/accounts`, `POST /api/sources/import/business-suite`.
+- Tests: `WindsorSyncTest` and `WindsorMapperTest` (fake connector API), `BusinessSuiteImporterTest` and `CsvReaderTest`, `PageLensSourcesApiTest`.
+- **Not yet checked against the live services:** the Windsor field combinations and response shapes, and the exact Business Suite column names. See API_NOTES.
+
 ### Phase 4: Hardening
 
 - **Backups:** a nightly `pg_dump` of the `pagelens` schema, run by app-web.

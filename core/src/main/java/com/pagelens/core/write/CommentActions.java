@@ -125,6 +125,10 @@ public class CommentActions {
         if (!"ACTIVE".equals(a.status())) {
             r.error("@" + a.username() + " needs reconnecting before it can moderate comments");
         }
+        if (!a.loginType().direct()) {
+            r.error("@" + a.username() + " is read-only (" + a.loginType() + " data); comments can only be "
+                    + "moderated on accounts connected with Instagram or Facebook Login");
+        }
         return t;
     }
 

@@ -105,7 +105,9 @@ public class AlertService {
                     "The last two syncs failed: " + firstLine(last.getFirst().errorMessage()),
                     "Check Logs → Sync runs", last.getFirst().finishedAt()));
         }
-        if ("ACTIVE".equals(a.status()) && a.createdAt() != null && a.createdAt().isBefore(now.minus(Duration.ofDays(1)))) {
+        boolean syncs = a.loginType() != com.pagelens.core.instagram.LoginType.IMPORT; // CSV-only accounts never sync
+        if (syncs && "ACTIVE".equals(a.status()) && a.createdAt() != null
+                && a.createdAt().isBefore(now.minus(Duration.ofDays(1)))) {
             Instant lastOk = runs.lastSuccessful(a.id(), "FULL").map(SyncRun::finishedAt).orElse(null);
             if (lastOk == null || lastOk.isBefore(now.minus(STALE_DATA))) {
                 out.add(new Alert(Severity.WARNING, "data_stale", a.id(), name,

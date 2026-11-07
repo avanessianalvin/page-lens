@@ -46,6 +46,11 @@ public class PublishValidator {
      * @param storedScopes the token's granted scopes as stored at connect time, or null if unknown (pasted token)
      */
     public void validate(PublishRequest req, Account account, String storedScopes, WriteResult.Builder r) {
+        if (!account.loginType().direct()) {
+            r.error("@" + account.username() + " is read-only (" + account.loginType() + " data); publishing needs "
+                    + "an account connected with Instagram or Facebook Login");
+            return;
+        }
         if (!"ACTIVE".equals(account.status())) {
             r.error("@" + account.username() + " needs reconnecting before it can publish");
         }

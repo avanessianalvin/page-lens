@@ -61,6 +61,17 @@ pagelens:
       facebook-dialog: https://www.facebook.com
       rupload: https://rupload.facebook.com
 
+  # Read-only fallback source when Meta's App Dashboard is unreachable (docs/META_ACCESS.md).
+  # Accounts are added from the Accounts page ("Add from Windsor.ai") once the key is set.
+  windsor:
+    api-key: ${WINDSOR_API_KEY:}
+    base-url: https://connectors.windsor.ai
+    connector: instagram
+    # Posts published and daily metrics within this many days are (re)fetched each sync. Windsor's free plan
+    # only serves 30 days; PageLens keeps everything it has already stored, so history still grows locally.
+    history-days: ${PAGELENS_WINDSOR_HISTORY_DAYS:30}
+    request-timeout: 120s
+
   http:
     connect-timeout: 10s
     request-timeout: 30s

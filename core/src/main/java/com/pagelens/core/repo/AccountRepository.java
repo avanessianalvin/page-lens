@@ -55,6 +55,35 @@ public class AccountRepository {
                 .query(Long.class).single();
     }
 
+    /**
+     * Adds an account fed by a read-only source (Windsor.ai or CSV import). An existing account keeps a direct
+     * Meta connection: only IMPORT → WINDSOR upgrades its type. Returns the account id.
+     */
+    public long upsertReadOnlySource(String igUserId, LoginType source, String username) {
+        if (source.direct()) {
+            throw new IllegalArgumentException("Use upsertConnected for " + source);
+        }
+        return jdbc.sql("""
+                        INSERT INTO ig_account (ig_user_id, login_type, username, status)
+                        VALUES (:igUserId, :source, :username, 'ACTIVE')
+                        ON CONFLICT (ig_user_id) DO UPDATE SET
+                            login_type = CASE WHEN ig_account.login_type = 'IMPORT' THEN EXCLUDED.login_type
+                                              ELSE ig_account.login_type END,
+                            username = CASE WHEN ig_account.username = ig_account.ig_user_id THEN EXCLUDED.username
+                                            ELSE ig_account.username END,
+                            updated_at = CURRENT_TIMESTAMP
+                        RETURNING id
+                        """)
+                .param("igUserId", igUserId).param("source", source.name())
+                .param("username", username == null ? igUserId : username)
+                .query(Long.class).single();
+    }
+
+    public Optional<Account> findByIgUserId(String igUserId) {
+        return jdbc.sql("SELECT " + COLUMNS + " FROM ig_account WHERE ig_user_id = :id").param("id", igUserId)
+                .query(AccountRepository::map).optional();
+    }
+
     public void updateProfile(long id, IgProfile p) {
         jdbc.sql("""
                         UPDATE ig_account SET

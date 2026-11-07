@@ -32,6 +32,7 @@ import com.pagelens.core.instagram.IgModels.IgMedia;
 import com.pagelens.core.instagram.IgModels.IgProfile;
 import com.pagelens.core.instagram.IgModels.Insights;
 import com.pagelens.core.instagram.InstagramApi;
+import com.pagelens.core.instagram.LoginType;
 import com.pagelens.core.logging.CorrelationId;
 import com.pagelens.core.repo.AccountRepository;
 import com.pagelens.core.repo.AccountRepository.Account;
@@ -44,6 +45,7 @@ import com.pagelens.core.repo.MediaRepository;
 import com.pagelens.core.repo.MediaRepository.SyncCandidate;
 import com.pagelens.core.repo.SyncRunRepository;
 import com.pagelens.core.repo.SyncRunRepository.Status;
+import com.pagelens.core.windsor.WindsorSync;
 
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -91,6 +93,7 @@ public class SyncService {
     private final TransactionTemplate tx;
     private final TaskExecutor executor;
     private final Clock clock;
+    private final WindsorSync windsor;
 
     /** Accounts whose /stories edge was refused (e.g. Instagram Login); not retried until restart. */
     private final Set<Long> storiesUnsupported = ConcurrentHashMap.newKeySet();
@@ -99,7 +102,8 @@ public class SyncService {
                        CommentRepository comments, DailyMetricRepository daily, AudienceRepository audience,
                        SyncRunRepository runs, TokenService tokens, InstagramApi api, MetricCatalog catalog,
                        SyncProperties props, GraphJson json, TransactionTemplate tx,
-                       @Qualifier("applicationTaskExecutor") TaskExecutor executor, Clock clock) {
+                       @Qualifier("applicationTaskExecutor") TaskExecutor executor, Clock clock,
+                       WindsorSync windsor) {
         this.accounts = accounts;
         this.media = media;
         this.insights = insights;
@@ -115,6 +119,7 @@ public class SyncService {
         this.tx = tx;
         this.executor = executor;
         this.clock = clock;
+        this.windsor = windsor;
     }
 
     /** Starts a run in the background (UI "Sync now", MCP sync_now). Returns the sync_run id immediately. */
@@ -207,6 +212,14 @@ public class SyncService {
     private Status execute(long runId, Account account, JobType job) {
         Instant started = clock.instant();
         log.info("Sync {} started for @{} (run {})", job, account.username(), runId);
+        if (account.loginType() == LoginType.IMPORT) {
+            runs.finish(runId, Status.SKIPPED, 0,
+                    "Imported account: it is updated by uploading a new Meta Business Suite export, not by syncing.");
+            return Status.SKIPPED;
+        }
+        if (account.loginType() == LoginType.WINDSOR) {
+            return executeWindsor(runId, account, job, started);
+        }
         AccountRef ref;
         try {
             ref = tokens.ref(account);
@@ -237,6 +250,26 @@ public class SyncService {
             accounts.touchSynced(account.id(), clock.instant());
         }
         log.info("Sync {} for @{} finished: {} ({} items, {} ms)", job, account.username(), status, run.items,
+                Duration.between(started, clock.instant()).toMillis());
+        return status;
+    }
+
+    private Status executeWindsor(long runId, Account account, JobType job, Instant started) {
+        WindsorSync.Outcome o;
+        try {
+            o = job == JobType.STORIES ? windsor.stories(account) : windsor.full(account);
+        } catch (RuntimeException e) {
+            log.error("Windsor sync {} for @{} crashed", job, account.username(), e);
+            o = new WindsorSync.Outcome(0, List.of("unexpected: " + e), true);
+        }
+        boolean nothing = o.items() == 0 && !o.errors().isEmpty();
+        Status status = o.aborted() || nothing ? Status.FAILED : o.errors().isEmpty() ? Status.SUCCEEDED : Status.PARTIAL;
+        String error = o.errors().isEmpty() ? null : truncate(String.join("\n", o.errors()), 4000);
+        runs.finish(runId, status, o.items(), error);
+        if (job != JobType.STORIES && status != Status.FAILED) {
+            accounts.touchSynced(account.id(), clock.instant());
+        }
+        log.info("Windsor sync {} for @{} finished: {} ({} items, {} ms)", job, account.username(), status, o.items(),
                 Duration.between(started, clock.instant()).toMillis());
         return status;
     }

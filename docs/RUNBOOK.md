@@ -45,6 +45,21 @@ The dashboard listens on `http://127.0.0.1:8080` only. Only app-web runs schedul
 - **STORIES** (`PAGELENS_STORIES_CRON`, every 3 h): live stories and their insights. Shows `SKIPPED` if Meta refuses the stories edge for the account (expected for some Instagram Login accounts).
 - Run outcomes: `SUCCEEDED`, `PARTIAL` (some steps failed; see the error text), `FAILED` (token invalid, rate-limited, or crashed), `SKIPPED`.
 
+### Read-only sources (no Meta app; see docs/META_ACCESS.md)
+
+- **Windsor.ai accounts** (`WINDSOR`).
+  - Setup: set `WINDSOR_API_KEY` in `.env`, restart app-web, then Accounts → **Add from Windsor.ai**. The Instagram account must already be connected inside your Windsor.ai workspace.
+  - **FULL** and **BACKFILL** run the same way. They re-fetch posts published in the last `PAGELENS_WINDSOR_HISTORY_DAYS` days (with fresh insight snapshots) and their comments. They also fetch daily metrics (the full window on the first sync, then the usual 3-day lookback), the profile and followers, and the audience once a day. **STORIES** fetches live stories.
+  - Insights of posts older than the window stop updating. Their stored history stays.
+  - Each sync is about 10 Windsor requests. Windsor allows 10,000 a day.
+  - `FAILED` with "Windsor rejected the API key" means the key in `.env` is wrong or revoked.
+- **Imported accounts** (`IMPORT`).
+  - Accounts → **Import CSV**, using Meta Business Suite → Insights → Content → Export data → Instagram → Posts or Stories, as CSV.
+  - Sync now is disabled for them, and the scheduler skips them. Import a newer export to update them.
+  - Each import adds a snapshot dated at import time.
+  - If the file has no "Account ID" column, pick the account in the dialog.
+- Both are read-only. Comment moderation and publishing need an Instagram Login or Facebook Login account.
+
 ## MCP server
 
 - **Tools:** 13 read tools plus `sync_now` (and 4 write tools when enabled, see below). Read tools answer from the local database only and never call Instagram. `sync_now` starts a background sync inside the MCP process (`triggered_by = mcp`, audited as `sync.start`). If Claude closes the session mid-sync, the run is abandoned and later marked `FAILED`.
@@ -109,6 +124,9 @@ The MCP process logs to **stderr and the log files only**. stdout is the MCP pro
 | `Connection to localhost:5432 refused` | Start PostgreSQL (Windows: Services → `postgresql-x64-17` → Start). |
 | `password authentication failed for user "pagelens"` | `.env` password doesn't match the DB role. Fix with `ALTER ROLE pagelens PASSWORD '...'`. |
 | `permission denied for schema pagelens` / `schema "pagelens" does not exist` | Run `scripts/db/create-schema.sql` as `postgres` (SETUP.md §2). |
+| "Meta for Developers is not available in this location" | Regional block. Use a read-only source instead (Windsor.ai or CSV import); see docs/META_ACCESS.md. |
+| Windsor sync `PARTIAL` with `HTTP 400` on a step | Windsor refused that field combination. Note the step and error and report it, so the field list in `WindsorMapper` can be adjusted. |
+| CSV import says there is no "Post ID" column | Wrong export. Use Insights → **Content** → Export data, not the overview or audience export. |
 | Flyway `Validate failed: Migrations have failed validation` | A migration that already ran was edited. Never edit an applied migration; add a new `V<n>__*.sql`. |
 | Integration tests show as skipped | Start Docker Desktop. |
 | app-web won't start: `PAGELENS_WEB_PASSWORD_HASH is missing` | Generate it with `--hash-password` (SETUP.md §5). |

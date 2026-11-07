@@ -49,6 +49,24 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
     }
 
+    @ExceptionHandler(com.pagelens.core.importer.BusinessSuiteImporter.ImportException.class)
+    ProblemDetail importFailed(com.pagelens.core.importer.BusinessSuiteImporter.ImportException e) {
+        return problem(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    @ExceptionHandler(com.pagelens.core.windsor.WindsorException.class)
+    ProblemDetail windsor(com.pagelens.core.windsor.WindsorException e) {
+        log.warn("Windsor.ai error ({}): {}", e.kind(), e.getMessage());
+        HttpStatus status = switch (e.kind()) {
+            case AUTH -> HttpStatus.UNPROCESSABLE_CONTENT;
+            case RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS;
+            case FAILED -> HttpStatus.BAD_GATEWAY;
+        };
+        ProblemDetail p = problem(status, "Windsor.ai: " + e.getMessage());
+        p.setProperty("kind", e.kind().name());
+        return p;
+    }
+
     @ExceptionHandler(GraphApiException.class)
     ProblemDetail graph(GraphApiException e) {
         log.warn("Instagram API error ({}): {}", e.kind(), e.getMessage());

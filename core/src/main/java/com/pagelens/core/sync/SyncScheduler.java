@@ -68,6 +68,9 @@ public class SyncScheduler {
 
     private void runForActiveAccounts(JobType job) {
         for (Account a : accounts.findActive()) {
+            if (a.loginType() == com.pagelens.core.instagram.LoginType.IMPORT) {
+                continue; // CSV-only account: nothing to fetch
+            }
             try {
                 sync.run(a.id(), job, Trigger.SCHEDULER);
             } catch (SyncService.AlreadyRunningException e) {

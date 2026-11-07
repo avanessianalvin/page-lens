@@ -162,7 +162,36 @@ Sources: Comment Moderation guide, IG Comment, IG Comment replies, IG Media (Upd
   - **400 containers per rolling 24 h**.
 - Behaviour when publishing an already-published container is not documented. PageLens therefore checks the container's `status_code` before calling `media_publish`, never calls `media_publish` twice for a job, and never retries write calls automatically.
 
+## Verified 2026-11-06: Windsor.ai connector API (read-only fallback)
+
+Sources: [Windsor API docs](https://windsor.ai/api-documentation/), [pricing](https://windsor.ai/pricing/), [data sources and accounts](https://windsor.ai/pricing/data-sources-and-accounts/), and the public field catalogue `https://connectors.windsor.ai/instagram/fields` (137 fields, each with its `table`).
+
+- **Request:** `GET https://connectors.windsor.ai/instagram?api_key=…&fields=a,b&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`.
+  - The key is accepted **only as a query parameter**; header auth answers `{"error":"Not authorized"}`.
+  - Other parameters: `date_preset` (`last_7d`…), `select_accounts`, `_renderer`, `refresh_interval` (default 6h).
+  - Response: `{"data":[{...}]}`. Errors: `{"error":"..."}` or `{"error":{"code","message"}}`, with 400/401/403/404/429/500.
+  - Limits: 600 requests a minute and 10,000 a day.
+- **`date`:** for media, story and comment rows, `date` is the **publish date**, so `date_from`/`date_to` filter posts by publish date. On daily insight rows it is the metric day; still to confirm live.
+- **Field tables PageLens requests separately:**
+  - `user_info`: `account_id`, `username`, `followers_count` (today only)…
+  - `user_insights_day`: `reach`, `follower_count` (new followers; none under 100 followers)
+  - `user_insights_day_total_value`: `views`, `accounts_engaged`, `total_interactions`, `likes`, `comments`, `shares`, `saves`, `replies`, `profile_links_taps`
+  - `media_info` + `media_insights`: `media_*`. `media_type` uses `REEL` for Reels, which PageLens maps to `VIDEO` + `REELS`.
+  - `comments`: `comment_*`
+  - stories: `story_*`
+  - one table per audience breakdown: `audience_age_*`, `audience_gender_*`, `audience_country_*`, `city` + `audience_city_size`
+- **Deprecated** (not requested): `impressions*`, `profile_views*`, `website_clicks_1d`, `media_impressions`, `media_plays`.
+- **Plans:** Free is "1 user, 1 data source, 1 account", with 30 days of history and no backfill. One Instagram profile is one account, and organic Instagram is one data source. Basic costs $19/month (annual) or $23/month and covers 3 sources and 75 accounts. Windsor's pricing page **doesn't say whether the REST API works on the free plan**.
+
+## Meta Business Suite content export (CSV import)
+
+- Assumed columns: `Post ID, Account ID, Account username, Account name, Description, Duration (sec), Publish time, Permalink, Post type, Data comment, Date, Views, Reach, Likes, Shares, Follows, Comments, Saves`. Publish time is `MM/DD/YYYY HH:MM` in the viewer's local time, "Post type" is `IG image`, `IG carousel`, `IG reel` or `IG story`, and "Date" is `Lifetime`.
+- This comes from community descriptions of the export, **not** from a Meta reference page (none exists). The importer matches headers by name and reports the columns it used, so a real export will show whether it fits.
+
 ## Still to verify (needs a live account)
+
+- [ ] **Windsor:** each field group (profile, daily, daily totals, media, comments, stories, audience) works with a real key; `date` on daily rows is the metric day; the API works on the free plan.
+- [ ] **Business Suite CSV:** real column names and the time format of an actual export.
 
 - [ ] Who may delete a comment (media owner vs comment author); the reference contradicts itself.
 - [ ] Error returned when `media_publish` is called for a container that is already `PUBLISHED`.

@@ -58,6 +58,11 @@ public class TokenService {
 
     /** API identity for an account, with the decrypted token. Throws if the account has no usable token. */
     public AccountRef ref(Account account) {
+        if (!account.loginType().direct()) {
+            throw new IllegalStateException("@" + account.username() + " is read-only (data from "
+                    + (account.loginType() == LoginType.WINDSOR ? "Windsor.ai" : "a CSV import")
+                    + "). Connect it with Instagram or Facebook Login to use this.");
+        }
         StoredToken t = tokens.find(account.id())
                 .orElseThrow(() -> new IllegalStateException("Account " + account.username() + " has no stored token"));
         if (TokenRepository.Status.INVALID.name().equals(t.status())) {

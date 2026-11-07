@@ -61,6 +61,8 @@ Names were checked against Meta's docs on 2026-11-05 (see [API_NOTES.md](API_NOT
 
 ### Steps
 
+If `developers.facebook.com` says "not available in this location" (it does from Armenia), see [META_ACCESS.md](META_ACCESS.md). That file also explains which accounts one app can serve.
+
 1. Go to <https://developers.facebook.com/apps>, click **Create app**, and name it **PageLens** (or **PageLens Dev**). Choose the business use case that offers the Instagram product.
 2. Add the **Instagram** product to the app.
 3. Make sure each Instagram account is a **Business** or **Creator** (professional) account: Instagram app → Settings → Account type and tools.

@@ -27,6 +27,8 @@ Everything runs on your machine. Tokens are stored encrypted and never leave it.
 |---|---|
 | [docs/SETUP.md](docs/SETUP.md) | Install, Meta app, dashboard login, Claude, write actions |
 | [docs/RUNBOOK.md](docs/RUNBOOK.md) | Operating it: build/test, start/stop, sync, backups and restore, alerts, export, logs, troubleshooting |
+| [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) | Current state, history and open items. Start here when resuming work |
+| [docs/META_ACCESS.md](docs/META_ACCESS.md) | Meta's developer site being blocked in Armenia: what it affects, the options, and how many accounts one app serves |
 | [docs/API_NOTES.md](docs/API_NOTES.md) | What Meta's API does and doesn't do, verified against Meta's docs |
 | [CHANGELOG.md](CHANGELOG.md) | What each phase added, and the decisions behind it |
 | [docs/Instagram Insights MCP Service Project Plan.md](docs/Instagram%20Insights%20MCP%20Service%20Project%20Plan.md) | The original plan |

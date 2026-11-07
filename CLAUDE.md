@@ -4,7 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-PageLens is a local-first Instagram Insights service (Instagram Graph API → PostgreSQL → MCP server + REST API + Vue dashboard). The full spec is `docs/Instagram Insights MCP Service Project Plan.md`. It is the source of truth for schema, REST endpoints, MCP tool names, and dashboard pages; read it before starting a phase. **All plan phases (0–4) are done**; see `CHANGELOG.md` for what exists and which decisions the owner has made. The owner makes all git commits: never commit.
+PageLens is a local-first Instagram Insights service (Instagram Graph API → PostgreSQL → MCP server + REST API + Vue dashboard). The full spec is `docs/Instagram Insights MCP Service Project Plan.md`. It is the source of truth for schema, REST endpoints, MCP tool names, and dashboard pages; read it before starting a phase. **All plan phases (0–4) are done**; see `CHANGELOG.md` for what exists and which decisions the owner has made. The owner makes all git commits: never commit, and never offer to.
+
+**Start every session by reading `docs/PROJECT_STATUS.md`.** It is the handoff: current state, what happened since Phase 4, open items for the owner and for development, and environment facts. Keep it current: update it at the end of any session that changes the project's state.
+
+In short: Meta's developer site is blocked in Armenia, so no Meta app exists yet (`docs/META_ACCESS.md`). Two read-only sources were added in its place:
+
+- Windsor.ai sync (login type `WINDSOR`)
+- Meta Business Suite CSV import (login type `IMPORT`)
+
+Both are tested with fakes but not yet against the real services, and they're uncommitted at the time of writing.
 
 ## Commands
 
@@ -47,6 +56,7 @@ Spring Boot 4.1 (Jackson 3 = `tools.jackson.*`, modular starters such as `spring
   - `crypto`: `TokenCipher`.
   - `analysis`: `AnalysisService` loads local data, and `Analytics` holds the pure aggregation rules. Add new analysis rules there and unit-test them without a database. Shared by REST and MCP.
   - `backup`: `BackupService` (pg_dump of the `pagelens` schema; connection from the live Hikari pool, password via `PGPASSWORD` only) and `BackupScheduler`. `alerts/AlertService` computes alerts from local state. `export/ExportService` writes CSV/JSON. `auth/AccountPurgeService` purges an account's data but keeps it connected.
+  - `windsor`: read-only fallback source. `WindsorClient` (Windsor.ai connector API, key masked) → `WindsorMapper` (pure mapping to the Graph models) → `WindsorSync`, which `SyncService` calls for `WINDSOR` accounts. `WindsorAccounts` adds accounts. `importer/BusinessSuiteImporter` loads Meta Business Suite CSV exports into `IMPORT` accounts. Both login types are read-only (`LoginType.direct()` is false): write actions and `TokenService.ref` refuse them. See docs/META_ACCESS.md.
   - `write`: every Instagram write goes through here.
     - `WriteGuard` is the master switch. `CommentActions` handles reply, hide and delete.
     - `PublishService` runs the container workflow as a resumable job in `publish_job`. `PublishValidator` holds Meta's rules, `MediaProbe` pre-checks URLs, and `UploadStore` stages local videos.
